@@ -36,6 +36,9 @@ export default function VitalsPage() {
   const [weightForm, setWeightForm] = useState({ weightKg: '', bodyFatPct: '' });
   const [savingWeight, setSavingWeight] = useState(false);
   const [activeTab, setActiveTab] = useState<'vitals' | 'medications'>('vitals');
+  // Sleep stages
+  const [sleepForm, setSleepForm] = useState({ totalHours: '', remHours: '', deepHours: '', lightHours: '', date: new Date().toISOString().slice(0,16) });
+  const [savingSleep, setSavingSleep] = useState(false);
   // Medications
   const [medications, setMedications] = useState<any[]>([]);
   const [medForm, setMedForm] = useState({ medicationName: '', dosage: '', frequency: '', instructions: '' });
@@ -51,6 +54,24 @@ export default function VitalsPage() {
     api.get<{ medications: any[] }>('/health/medications').then((r) => setMedications(r.medications)).catch(() => {});
   }
   useEffect(() => { load(); loadWeight(); loadMedications(); }, []);
+
+  async function handleSleepStages(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sleepForm.totalHours) return;
+    setSavingSleep(true);
+    try {
+      await api.post('/health/sleep-stages', {
+        recordedAt:  new Date(sleepForm.date).toISOString(),
+        sleepHours:  Number(sleepForm.totalHours),
+        remHours:    sleepForm.remHours   ? Number(sleepForm.remHours)   : undefined,
+        deepHours:   sleepForm.deepHours  ? Number(sleepForm.deepHours)  : undefined,
+        lightHours:  sleepForm.lightHours ? Number(sleepForm.lightHours) : undefined,
+      });
+      setSleepForm({ totalHours: '', remHours: '', deepHours: '', lightHours: '', date: new Date().toISOString().slice(0,16) });
+      load();
+    } catch (_) {}
+    setSavingSleep(false);
+  }
 
   async function handleWeightLog(e: React.FormEvent) {
     e.preventDefault();
@@ -483,6 +504,104 @@ export default function VitalsPage() {
             </div>
           )}
         </Card>
+      </div>
+
+      {/* ─── Sleep Stages Tracker (Oura/WHOOP-style) ─── */}
+      <div className="glass rounded-2xl p-5 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🛏️ Sleep Stage Breakdown</p>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <form onSubmit={handleSleepStages} className="space-y-3">
+            <p className="text-xs text-slate-500">Log detailed sleep stages after checking your wearable or sleep tracker app</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['Total Sleep (h)', 'totalHours', '7.5', '#6366f1'],
+                ['REM (h)',         'remHours',   '1.8', '#8b5cf6'],
+                ['Deep (h)',        'deepHours',  '1.2', '#3b82f6'],
+                ['Light (h)',       'lightHours', '4.5', '#94a3b8'],
+              ].map(([label, key, ph, _]) => (
+                <div key={key}>
+                  <p className="text-[10px] text-slate-500 mb-1">{label}</p>
+                  <input type="number" step="0.1" min="0" max="24"
+                    placeholder={ph}
+                    value={(sleepForm as any)[key]}
+                    onChange={(e) => setSleepForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="w-full rounded-xl glass px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
+                  />
+                </div>
+              ))}
+            </div>
+            <input type="datetime-local" value={sleepForm.date}
+              onChange={(e) => setSleepForm((f) => ({ ...f, date: e.target.value }))}
+              className="w-full rounded-xl glass px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30" />
+            <button type="submit" disabled={savingSleep || !sleepForm.totalHours}
+              className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+              {savingSleep ? 'Saving…' : '🛏️ Log Sleep Stages'}
+            </button>
+          </form>
+
+          {/* Show last logged sleep stages from vitals */}
+          {(() => {
+            const lastSleep = vitals.find((v) => v.sleep_hours != null && ((v as any).sleep_rem_h != null || (v as any).sleep_deep_h != null));
+            if (!lastSleep) {
+              return (
+                <div className="flex items-center justify-center text-xs text-slate-600 text-center">
+                  <p>Log sleep stages to see your<br />REM/Deep/Light breakdown</p>
+                </div>
+              );
+            }
+            const total = lastSleep.sleep_hours ?? 0;
+            const rem   = Number((lastSleep as any).sleep_rem_h   ?? 0);
+            const deep  = Number((lastSleep as any).sleep_deep_h  ?? 0);
+            const light = Number((lastSleep as any).sleep_light_h ?? (total - rem - deep));
+            const stages = [
+              { label: 'REM',   h: rem,   color: '#8b5cf6', desc: 'Memory + learning' },
+              { label: 'Deep',  h: deep,  color: '#3b82f6', desc: 'Physical recovery' },
+              { label: 'Light', h: light, color: '#94a3b8', desc: 'Rest' },
+            ];
+            // SVG pie donut
+            const R = 44; const cx = 56; const cy = 56; const sw = 20;
+            const circ = 2 * Math.PI * R;
+            let offset = 0;
+            const slices = stages.map((s) => {
+              const frac = total > 0 ? s.h / total : 0;
+              const el = (
+                <circle key={s.label} cx={cx} cy={cy} r={R}
+                  fill="none" stroke={s.color} strokeWidth={sw}
+                  strokeDasharray={`${frac * circ} ${circ}`}
+                  strokeDashoffset={-offset * circ}
+                  transform={`rotate(-90 ${cx} ${cy})`} />
+              );
+              offset += frac;
+              return el;
+            });
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <svg width={112} height={112} viewBox="0 0 112 112" className="shrink-0">
+                    <circle cx={cx} cy={cy} r={R} fill="none" stroke="#ffffff08" strokeWidth={sw} />
+                    {slices}
+                    <text x={cx} y={cy - 4}  textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">{total}h</text>
+                    <text x={cx} y={cy + 10} textAnchor="middle" fill="#6b7280" fontSize="8">total</text>
+                  </svg>
+                  <div className="space-y-2">
+                    {stages.map((s) => (
+                      <div key={s.label}>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold" style={{ color: s.color }}>{s.label}</span>
+                          <span className="text-white">{s.h.toFixed(1)}h ({total > 0 ? Math.round((s.h / total) * 100) : 0}%)</span>
+                        </div>
+                        <p className="text-[9px] text-slate-600">{s.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-600">
+                  🎯 Optimal: REM 20-25% · Deep 15-20% · Light 55-60% of total sleep
+                </p>
+              </div>
+            );
+          })()}
+        </div>
       </div>
       </>)}
 

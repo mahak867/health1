@@ -99,12 +99,18 @@ export default function ActivitiesPage() {
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [distancePBs, setDistancePBs] = useState<any[] | null>(null);
 
   function load() {
     api.get<{ activities: Activity[] }>('/activities').then((r) => setActivities(r.activities));
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get<{ personalBests: any[] }>('/activities/personal-bests')
+      .then((r) => setDistancePBs(r.personalBests))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('');
@@ -166,6 +172,33 @@ export default function ActivitiesPage() {
           </div>
         ))}
       </div>
+
+      {/* Distance PRs — Strava-style fastest times per distance */}
+      {distancePBs && distancePBs.some((pb) => pb.pb !== null) && (
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">🏅 Distance Personal Bests</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {distancePBs.map((item) => (
+              <div key={item.label} className={`glass rounded-xl p-3 text-center ${item.pb ? 'border border-yellow-500/25' : 'opacity-40'}`}>
+                <p className="text-xs font-bold text-slate-400 mb-1">{item.label}</p>
+                {item.pb ? (
+                  <>
+                    <p className="text-lg font-black text-yellow-400">
+                      {Math.floor(item.pb.durationSec / 3600) > 0
+                        ? `${Math.floor(item.pb.durationSec / 3600)}h ${Math.floor((item.pb.durationSec % 3600) / 60)}m`
+                        : `${Math.floor(item.pb.durationSec / 60)}:${String(item.pb.durationSec % 60).padStart(2,'0')}`}
+                    </p>
+                    <p className="text-[10px] text-slate-400">{item.pb.paceMinKm} /km</p>
+                    <p className="text-[9px] text-slate-600 mt-1 truncate">{item.pb.title}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-600 mt-2">No runs yet</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Log form */}
       {showForm && (

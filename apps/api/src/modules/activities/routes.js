@@ -271,3 +271,51 @@ activitiesRouter.delete('/:activityId/comments/:commentId', async (req, res, nex
     return next(error);
   }
 });
+
+// ─── Distance Personal Bests (5K / 10K / Half-Marathon / Marathon) ────────────
+activitiesRouter.get('/personal-bests', async (req, res, next) => {
+  try {
+    // Find the fastest time (shortest duration) for each distance bucket
+    // Tolerance: 5K = 4.5-5.5 km, 10K = 9-11 km, HM = 19-22 km, Full = 40-43 km
+    const buckets = [
+      { label: '5K',             minM: 4500,  maxM: 5500 },
+      { label: '10K',            minM: 9000,  maxM: 11000 },
+      { label: 'Half Marathon',  minM: 19000, maxM: 22000 },
+      { label: 'Marathon',       minM: 40000, maxM: 43000 },
+    ];
+
+    const results = await Promise.all(buckets.map(async (b) => {
+      const r = await query(
+        `SELECT id, title, distance_m, duration_seconds, completed_at, activity_type
+         FROM activities
+         WHERE user_id = $1
+           AND distance_m BETWEEN $2 AND $3
+           AND duration_seconds IS NOT NULL AND duration_seconds > 0
+         ORDER BY duration_seconds ASC
+         LIMIT 1`,
+        [req.user.sub, b.minM, b.maxM]
+      );
+      if (r.rowCount === 0) return { label: b.label, pb: null };
+      const a = r.rows[0];
+      const pace = a.duration_seconds / 60 / (a.distance_m / 1000); // min/km
+      const paceM = Math.floor(pace);
+      const paceS = Math.round((pace - paceM) * 60);
+      return {
+        label: b.label,
+        pb: {
+          activityId: a.id,
+          title:         a.title,
+          distanceM:     a.distance_m,
+          durationSec:   a.duration_seconds,
+          completedAt:   a.completed_at,
+          paceMinKm:     `${paceM}:${String(paceS).padStart(2,'0')}`,
+          activityType:  a.activity_type,
+        }
+      };
+    }));
+
+    return res.json({ personalBests: results });
+  } catch (error) {
+    return next(error);
+  }
+});

@@ -328,6 +328,70 @@ export default function ProfilePage({ user }: Props) {
         </div>
       </Card>
 
+      {/* ─── BMI + Body Composition ─── */}
+      {form.heightCm && form.weightKg && (() => {
+        const h = Number(form.heightCm) / 100;
+        const w = Number(form.weightKg);
+        if (!h || !w) return null;
+        const bmi = w / (h * h);
+        const bmiCat = bmi < 18.5 ? { label: 'Underweight', color: '#3b82f6' }
+          : bmi < 25   ? { label: 'Normal',      color: '#22c55e' }
+          : bmi < 30   ? { label: 'Overweight',  color: '#f59e0b' }
+          : bmi < 35   ? { label: 'Obese (I)',   color: '#f97316' }
+          :               { label: 'Obese (II+)', color: '#ef4444' };
+        // Ideal weight range: BMI 18.5-24.9
+        const idealMin = (18.5 * h * h).toFixed(1);
+        const idealMax = (24.9 * h * h).toFixed(1);
+        // Lean mass estimate (if BF% from latest weight log)
+        // BMI gauge 0-40
+        const gaugePct = Math.min((bmi / 40) * 100, 100);
+        return (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">🧬 Body Composition</p>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              {/* BMI dial */}
+              <div className="shrink-0 text-center">
+                <svg width={140} height={80} viewBox="0 0 140 80">
+                  {/* background arc */}
+                  <path d="M10,70 A60,60 0 0,1 130,70" fill="none" stroke="#ffffff10" strokeWidth="16" strokeLinecap="round" />
+                  {/* colored arc */}
+                  <path d="M10,70 A60,60 0 0,1 130,70" fill="none" stroke={bmiCat.color}
+                    strokeWidth="16" strokeLinecap="round"
+                    strokeDasharray={`${(gaugePct / 100) * 188} 188`} opacity="0.85" />
+                  <text x="70" y="62" textAnchor="middle" fill="white" fontSize="20" fontWeight="bold">{bmi.toFixed(1)}</text>
+                  <text x="70" y="78" textAnchor="middle" fill="#6b7280" fontSize="10">BMI</text>
+                </svg>
+                <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: `${bmiCat.color}22`, color: bmiCat.color }}>
+                  {bmiCat.label}
+                </span>
+              </div>
+              <div className="flex-1 space-y-3 w-full">
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className="glass rounded-xl p-3">
+                    <p className="text-lg font-black text-white">{w} kg</p>
+                    <p className="text-[10px] text-slate-500">Current Weight</p>
+                  </div>
+                  <div className="glass rounded-xl p-3">
+                    <p className="text-lg font-black text-emerald-400">{idealMin}–{idealMax} kg</p>
+                    <p className="text-[10px] text-slate-500">Healthy Range</p>
+                  </div>
+                </div>
+                {w < Number(idealMin) && (
+                  <p className="text-xs text-blue-300">📈 Gain {(Number(idealMin) - w).toFixed(1)} kg to reach healthy range</p>
+                )}
+                {w > Number(idealMax) && (
+                  <p className="text-xs text-amber-300">📉 Lose {(w - Number(idealMax)).toFixed(1)} kg to reach healthy range</p>
+                )}
+                {w >= Number(idealMin) && w <= Number(idealMax) && (
+                  <p className="text-xs text-emerald-300">✅ You're in the healthy weight range!</p>
+                )}
+                <p className="text-[10px] text-slate-600">BMI is a screening tool, not a diagnostic. It doesn't account for muscle mass.</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ─── Lifetime Personal Stats ─── */}
       {stats && (
         <div className="glass rounded-2xl p-5">

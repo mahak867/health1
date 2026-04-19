@@ -73,9 +73,23 @@ export default function AiPage() {
   const [aiTab, setAiTab] = useState<'chat' | 'tools'>('chat');
   // HR Zones
   const [hrZones, setHrZones] = useState<any[] | null>(null);
+  // AI Weekly Plan
+  const [weeklyPlan, setWeeklyPlan] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
   useEffect(() => {
     api.get<{ zones: any[] }>('/fitness/hr-zones').then((r) => setHrZones(r.zones)).catch(() => {});
   }, []);
+
+  async function generateWeeklyPlan() {
+    setPlanLoading(true);
+    try {
+      const res = await api.post<{ reply: string }>('/ai/chat', {
+        message: 'Generate a detailed 7-day training + nutrition plan for me based on my current profile, recovery status, training mode, and activity history. Format it as a day-by-day breakdown with workout, nutrition, and recovery guidance for each day.'
+      });
+      setWeeklyPlan(res.reply);
+    } catch (_) {}
+    setPlanLoading(false);
+  }
 
   // Chat state
   interface ChatMessage { role: 'user' | 'ai'; text: string; }
@@ -381,6 +395,22 @@ export default function AiPage() {
           </div>
         </div>
       )}
+
+      {/* ─── AI Weekly Plan Generator ─────────────────────────────────────── */}
+      <Card title="📅 AI Weekly Plan Generator" accent="violet">
+        <p className="text-xs text-slate-500 mb-4">
+          Generate a personalized 7-day plan combining training, nutrition, and recovery — based on your live profile, mode, and history.
+        </p>
+        <button onClick={generateWeeklyPlan} disabled={planLoading}
+          className="px-6 py-2.5 rounded-xl gradient-violet text-white text-sm font-bold disabled:opacity-50 hover:scale-[1.02] transition-transform">
+          {planLoading ? '🤖 Generating plan…' : '🗓️ Generate This Week\'s Plan'}
+        </button>
+        {weeklyPlan && (
+          <div className="mt-4 p-4 rounded-xl bg-white/5 text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+            {weeklyPlan}
+          </div>
+        )}
+      </Card>
 
       {/* ─── VO2Max calculator ───────────────────────────────────────────────── */}
       <Card title="VO₂Max Estimator (Uth-Sørensen formula)" accent="blue">
