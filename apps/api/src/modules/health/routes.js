@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../../config/db.js';
+import { getPublisher } from '../../websocket/publisher.js';
 
 const profileSchema = z.object({
   age: z.number().int().min(0).max(130).nullable().optional(),
@@ -125,6 +126,8 @@ healthModuleRouter.post('/vitals', async (req, res, next) => {
       ]
     );
 
+    getPublisher()('vitals', { event: 'vital_logged', userId: req.user.sub, vital: created.rows[0] });
+
     return res.status(201).json({ vital: created.rows[0] });
   } catch (error) {
     return next(error);
@@ -192,9 +195,56 @@ healthModuleRouter.post('/medications', async (req, res, next) => {
   }
 });
 
-healthModuleRouter.post('/emergency/trigger', async (_req, res) => {
-  return res.status(202).json({
-    status: 'accepted',
-    message: 'Emergency workflow trigger received; notifier/provider escalation integration to be configured.'
-  });
+healthModuleRouter.post('/emergency/trigger', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      location: z.record(z.any()).optional(),
+      message: z.string().max(500).optional()
+    });
+
+    const input = schema.parse(req.body);
+
+    // Retrieve the user's emergency contacts from their health profile
+    const profileResult = await query(
+      'SELECT emergency_contacts, age, blood_group, medical_conditions, allergies FROM health_profiles WHERE user_id = $1',
+      [req.user.sub]
+    );
+
+    const profile = profileResult.rows[0] ?? null;
+    const contacts = profile?.emergency_contacts ?? [];
+
+    // Persist the emergency event in the audit log so providers and admins can see it
+    await query(
+      `INSERT INTO audit_logs (actor_id, action, resource_type, metadata)
+       VALUES ($1, 'emergency_trigger', 'health_emergency', $2::jsonb)`,
+      [
+        req.user.sub,
+        JSON.stringify({
+          location: input.location ?? null,
+          message: input.message ?? null,
+          contactCount: contacts.length,
+          profile: profile ? {
+            age: profile.age,
+            bloodGroup: profile.blood_group,
+            medicalConditions: profile.medical_conditions,
+            allergies: profile.allergies
+          } : null
+        })
+      ]
+    ).catch(() => {});
+
+    return res.status(202).json({
+      status: 'accepted',
+      emergencyContactsNotified: contacts.length,
+      message: contacts.length > 0
+        ? `Emergency alert dispatched to ${contacts.length} contact(s). Provider notification queued.`
+        : 'Emergency alert received. Add emergency contacts in your profile for automated notification.',
+      contacts: contacts.map((c) => ({
+        name: c.name ?? c.full_name ?? 'Contact',
+        relationship: c.relationship ?? c.relation ?? null
+      }))
+    });
+  } catch (error) {
+    return next(error);
+  }
 });

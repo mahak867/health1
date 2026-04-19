@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../../config/db.js';
+import { getPublisher } from '../../websocket/publisher.js';
+import { calculateNutritionTargets } from './service.js';
 
 const mealSchema = z.object({
   mealType: z.string().min(1),
@@ -20,17 +22,6 @@ const hydrationSchema = z.object({
   consumedAt: z.string().datetime(),
   milliliters: z.number().int().min(1).max(10000)
 });
-
-function calculateNutritionTargets({ weightKg, heightCm, age, sex, activityFactor, goalMultiplier = 1 }) {
-  const s = sex === 'male' ? 5 : -161;
-  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + s;
-  const tdee = bmr * activityFactor;
-  return {
-    bmr: Math.round(bmr),
-    tdee: Math.round(tdee),
-    targetCalories: Math.round(tdee * goalMultiplier)
-  };
-}
 
 export const nutritionRouter = Router();
 
@@ -66,6 +57,8 @@ nutritionRouter.post('/meals', async (req, res, next) => {
         JSON.stringify(input.micronutrients ?? {})
       ]
     );
+
+    getPublisher()('nutrition', { event: 'meal_logged', userId: req.user.sub, meal: created.rows[0] });
 
     return res.status(201).json({ meal: created.rows[0] });
   } catch (error) {
@@ -113,6 +106,49 @@ nutritionRouter.get('/calculators', (req, res, next) => {
     const targets = calculateNutritionTargets(input);
 
     return res.json({ targets });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+nutritionRouter.get('/daily-summary', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+    });
+
+    const { date } = schema.parse(req.query);
+    const targetDate = date ?? new Date().toISOString().slice(0, 10);
+
+    const [meals, hydration] = await Promise.all([
+      query(
+        `SELECT
+           COUNT(*)               AS meal_count,
+           COALESCE(SUM(calories),   0) AS total_calories,
+           COALESCE(SUM(protein_g),  0) AS total_protein_g,
+           COALESCE(SUM(carbs_g),    0) AS total_carbs_g,
+           COALESCE(SUM(fat_g),      0) AS total_fat_g,
+           COALESCE(SUM(fiber_g),    0) AS total_fiber_g,
+           COALESCE(SUM(sugar_g),    0) AS total_sugar_g,
+           COALESCE(SUM(sodium_mg),  0) AS total_sodium_mg
+         FROM nutrition_logs
+         WHERE user_id = $1
+           AND consumed_at::date = $2::date`,
+        [req.user.sub, targetDate]
+      ),
+      query(
+        `SELECT COALESCE(SUM(milliliters), 0) AS total_ml, COUNT(*) AS entries
+         FROM hydration_logs
+         WHERE user_id = $1 AND consumed_at::date = $2::date`,
+        [req.user.sub, targetDate]
+      )
+    ]);
+
+    return res.json({
+      date: targetDate,
+      nutrition: meals.rows[0],
+      hydration: hydration.rows[0]
+    });
   } catch (error) {
     return next(error);
   }

@@ -14,6 +14,7 @@ const LINKS: { label: string; icon: string }[] = [
   { label: 'Workouts',       icon: '🏋️' },
   { label: 'Meals',          icon: '🥗' },
   { label: 'Ranking',        icon: '🏆' },
+  { label: 'AI Engine',      icon: '🧠' },
   { label: 'Telemedicine',   icon: '🩺' },
   { label: 'Notifications',  icon: '🔔' },
   { label: 'Profile',        icon: '👤' },

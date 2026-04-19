@@ -95,3 +95,44 @@ telemedicineRouter.post('/appointments/:appointmentId/sessions', async (req, res
     return next(error);
   }
 });
+
+telemedicineRouter.patch('/appointments/:appointmentId', async (req, res, next) => {
+  try {
+    const { appointmentId } = req.params;
+    const schema = z.object({
+      status: z.enum(['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
+      meetingUrl: z.string().url().nullable().optional()
+    });
+
+    const input = schema.parse(req.body);
+
+    if (!input.status && input.meetingUrl === undefined) {
+      return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    const access = await query(
+      'SELECT id FROM appointments WHERE id = $1 AND (user_id = $2 OR provider_user_id = $2)',
+      [appointmentId, req.user.sub]
+    );
+
+    if (access.rowCount === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    const setClauses = [];
+    const params = [];
+
+    if (input.status !== undefined) { params.push(input.status); setClauses.push(`status = $${params.length}`); }
+    if (input.meetingUrl !== undefined) { params.push(input.meetingUrl); setClauses.push(`meeting_url = $${params.length}`); }
+
+    params.push(appointmentId);
+    const updated = await query(
+      `UPDATE appointments SET ${setClauses.join(', ')} WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+
+    return res.json({ appointment: updated.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});

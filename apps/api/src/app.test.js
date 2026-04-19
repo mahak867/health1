@@ -201,6 +201,46 @@ test('modeTarget: unsupported mode throws', () => {
   assert.throws(() => modeTarget({ mode: 'unsupported', tdee: 2200, weightKg: 75 }));
 });
 
+// ─── Nutrition calculator service tests ──────────────────────────────────────
+import { calculateNutritionTargets } from './modules/nutrition/service.js';
+
+test('calculateNutritionTargets: male BMR matches Mifflin-St Jeor formula', () => {
+  // male: 10·80 + 6.25·175 - 5·30 + 5 = 800 + 1093.75 - 150 + 5 = 1748.75 ≈ 1749
+  const { bmr } = calculateNutritionTargets({ weightKg: 80, heightCm: 175, age: 30, sex: 'male', activityFactor: 1.2 });
+  assert.ok(Math.abs(bmr - 1749) <= 1, `expected ~1749, got ${bmr}`);
+});
+
+test('calculateNutritionTargets: female BMR matches Mifflin-St Jeor formula', () => {
+  // female: 10·60 + 6.25·165 - 5·25 - 161 = 600 + 1031.25 - 125 - 161 = 1345.25 ≈ 1345
+  const { bmr } = calculateNutritionTargets({ weightKg: 60, heightCm: 165, age: 25, sex: 'female', activityFactor: 1.375 });
+  assert.ok(Math.abs(bmr - 1345) <= 1, `expected ~1345, got ${bmr}`);
+});
+
+test('calculateNutritionTargets: TDEE > BMR for any activity factor > 1', () => {
+  const { bmr, tdee } = calculateNutritionTargets({ weightKg: 75, heightCm: 175, age: 30, sex: 'male', activityFactor: 1.55 });
+  assert.ok(tdee > bmr, `TDEE (${tdee}) should exceed BMR (${bmr})`);
+});
+
+test('calculateNutritionTargets: goalMultiplier scales target calories correctly', () => {
+  const base = calculateNutritionTargets({ weightKg: 75, heightCm: 175, age: 30, sex: 'male', activityFactor: 1.55 });
+  const deficit = calculateNutritionTargets({ weightKg: 75, heightCm: 175, age: 30, sex: 'male', activityFactor: 1.55, goalMultiplier: 0.8 });
+  assert.ok(deficit.targetCalories < base.targetCalories);
+  assert.ok(Math.abs(deficit.targetCalories - Math.round(base.tdee * 0.8)) <= 1);
+});
+
+test('calculateNutritionTargets: macros include proteinG, fatG, carbG', () => {
+  const { macros } = calculateNutritionTargets({ weightKg: 75, heightCm: 175, age: 28, sex: 'male', activityFactor: 1.55 });
+  assert.ok(macros.proteinG > 0, 'protein must be positive');
+  assert.ok(macros.fatG > 0, 'fat must be positive');
+  assert.ok(macros.carbG >= 0, 'carbs must be non-negative');
+});
+
+test('calculateNutritionTargets: protein follows 1.62g/kg floor', () => {
+  const weightKg = 80;
+  const { macros } = calculateNutritionTargets({ weightKg, heightCm: 180, age: 30, sex: 'male', activityFactor: 1.55 });
+  assert.ok(macros.proteinG >= Math.round(weightKg * 1.62) - 1, `protein ${macros.proteinG} should be ≥ ${Math.round(weightKg * 1.62)}`);
+});
+
 // ─── Token utility tests ──────────────────────────────────────────────────────
 import { hashToken } from './core/utils/token.js';
 
@@ -219,4 +259,67 @@ test('hashToken: different inputs always produce different hashes', () => {
   const hashes = tokens.map(hashToken);
   const unique = new Set(hashes);
   assert.equal(unique.size, tokens.length);
+});
+
+// ─── WebSocket gateway tests ──────────────────────────────────────────────────
+import { getPublisher } from './websocket/publisher.js';
+
+test('getPublisher: returns a no-op function before attachWebSocket is called', () => {
+  // Before any server is attached the publisher is a no-op; calling it must not throw
+  assert.doesNotThrow(() => getPublisher()('vitals', { test: true }));
+});
+
+// ─── Ranking service — extended edge cases ────────────────────────────────────
+
+test('rankForScore: score exactly at tier boundary is classified in that tier', () => {
+  // bronze.min = 1.5
+  const { current } = rankForScore(1.5);
+  assert.equal(current.name, 'bronze');
+});
+
+test('rankForScore: progress is 0 at tier lower bound', () => {
+  // bronze starts at 1.5, silver starts at 2.5 → 0% progress at exactly 1.5
+  const { progress } = rankForScore(1.5);
+  assert.equal(progress, 0);
+});
+
+test('epley1RM: 10 reps at 100 kg ≈ 133 kg (well-established training reference)', () => {
+  // 100 × (1 + 10/30) = 100 × 1.333 = 133.33
+  const est = epley1RM(100, 10);
+  assert.ok(Math.abs(est - 133.33) < 0.1, `expected 133.33, got ${est}`);
+});
+
+// ─── AI service — boundary tests ──────────────────────────────────────────────
+
+test('detectRecoveryNeed: 0 sleep hours produces minimum-side score', () => {
+  const { recoveryScore } = detectRecoveryNeed({ sleepHours: 0, restingHeartRateDelta: 0, workoutLoad: 0 });
+  // 0 sleep: sleepScore = max(0, 100 - 7×18) = max(0, -26) = 0; rhrScore=100; loadScore=90
+  // weighted = 0×0.40 + 100×0.35 + 90×0.25 = 0 + 35 + 22.5 = 57 or 58
+  assert.ok(recoveryScore <= 60, `expected low score for 0 sleep, got ${recoveryScore}`);
+});
+
+test('detectRecoveryNeed: readiness low when score < 55', () => {
+  const { readiness } = detectRecoveryNeed({ sleepHours: 3, restingHeartRateDelta: 15, workoutLoad: 2.0 });
+  assert.equal(readiness, 'low');
+});
+
+test('nutritionInsight: optimal scenario returns all-positive flags', () => {
+  // 80 kg person, 200g protein (>2.2×80=176), no deficit
+  const { proteinAdequate, proteinOptimal, leucineAdequate, deficitSeverity } = nutritionInsight({
+    calorieDeficit: 0, proteinG: 200, weightKg: 80
+  });
+  assert.equal(proteinAdequate, true);
+  assert.equal(proteinOptimal, true);
+  assert.equal(leucineAdequate, true);
+  assert.equal(deficitSeverity, 'surplus');
+});
+
+test('fitnessProgressInsight: sudden 20%+ volume drop flags undertraining', () => {
+  const { undertrainingRisk } = fitnessProgressInsight({ weeklyVolumeChange: -0.25, injuryRisk: 0.1 });
+  assert.equal(undertrainingRisk, true);
+});
+
+test('estimateVO2Max: invalid (zero resting HR) returns null', () => {
+  const result = estimateVO2Max({ maxHeartRate: 190, restingHeartRate: 0 });
+  assert.equal(result, null);
 });

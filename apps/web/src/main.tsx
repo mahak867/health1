@@ -12,6 +12,7 @@ import TelemedicinePage from './pages/TelemedicinePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RankingPage from './pages/RankingPage';
+import AiPage from './pages/AiPage';
 import Navbar from './components/Navbar';
 
 const PAGES: Record<string, React.FC<any>> = {
@@ -23,6 +24,7 @@ const PAGES: Record<string, React.FC<any>> = {
   Notifications: NotificationsPage,
   Profile: ProfilePage,
   Ranking: RankingPage,
+  'AI Engine': AiPage,
 };
 
 function App() {

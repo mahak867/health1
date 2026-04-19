@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../../config/db.js';
+import { getPublisher } from '../../websocket/publisher.js';
 
 const workoutSchema = z.object({
   title: z.string().min(1),
@@ -46,6 +47,8 @@ fitnessRouter.post('/workouts', async (req, res, next) => {
         input.completedAt ?? null
       ]
     );
+
+    getPublisher()('fitness', { event: 'workout_created', userId: req.user.sub, workout: created.rows[0] });
 
     return res.status(201).json({ workout: created.rows[0] });
   } catch (error) {
@@ -98,10 +101,45 @@ fitnessRouter.post('/workouts/:workoutId/exercises', async (req, res, next) => {
   }
 });
 
+fitnessRouter.delete('/workouts/:workoutId', async (req, res, next) => {
+  try {
+    const { workoutId } = req.params;
+    const deleted = await query(
+      'DELETE FROM workouts WHERE id = $1 AND user_id = $2 RETURNING id',
+      [workoutId, req.user.sub]
+    );
+
+    if (deleted.rowCount === 0) {
+      return res.status(404).json({ error: 'Workout not found' });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+});
+
 fitnessRouter.get('/ranking', (_req, res) => {
   res.json({ module: 'fitness', message: 'Use /api/v1/ranking/muscle for ranking details.' });
 });
 
-fitnessRouter.get('/trainer/messages', (_req, res) => {
-  res.json({ module: 'fitness', message: 'Trainer communication scaffold endpoint ready.' });
+fitnessRouter.get('/trainer/messages', async (req, res, next) => {
+  try {
+    // Returns the list of trainers the current user follows, so the client can
+    // open a direct channel to each. Full in-app messaging is a future module.
+    const result = await query(
+      `SELECT u.id, u.full_name, u.role, sf.created_at AS followed_at
+       FROM social_follows sf
+       JOIN users u ON u.id = sf.following_id
+       WHERE sf.follower_id = $1 AND u.role = 'trainer'`,
+      [req.user.sub]
+    );
+
+    return res.json({
+      trainers: result.rows,
+      note: 'Real-time trainer messaging is delivered over WebSocket channel "trainer_chat".'
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
