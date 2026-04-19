@@ -1,11 +1,13 @@
 const TIERS = [
-  { name: 'beginner', min: 0 },
-  { name: 'bronze', min: 400 },
-  { name: 'silver', min: 900 },
-  { name: 'gold', min: 1600 },
+  { name: 'wood',     min: 0    },
+  { name: 'bronze',   min: 400  },
+  { name: 'silver',   min: 900  },
+  { name: 'gold',     min: 1600 },
   { name: 'platinum', min: 2500 },
-  { name: 'diamond', min: 3600 },
-  { name: 'elite', min: 5000 }
+  { name: 'diamond',  min: 3600 },
+  { name: 'champion', min: 5000 },
+  { name: 'titan',    min: 7000 },
+  { name: 'olympian', min: 9500 },
 ];
 
 export function consistencyFactor({ workoutsPerWeek, streakDays, volumeProgression }) {
