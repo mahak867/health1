@@ -74,8 +74,11 @@ export default function DashboardPage({ user, onNavigate }: Props) {
       </div>
 
       {/* Google Fit-style activity rings */}
-      <div className="glass rounded-2xl p-5">
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-5">Today's Activity Rings</p>
+      <div className="card-solid rounded-2xl p-5 border border-white/10">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-5 flex items-center gap-2">
+          <span className="inline-block w-3 h-[2px] bg-emerald-500 rounded-full" />
+          Today's Activity Rings
+        </p>
         <div className="flex flex-wrap justify-around gap-6">
           <Ring value={calPct} color="#ff6200" trackColor="#2a1500" size={96} strokeWidth={9}
             label={`${calBurned} kcal`} sublabel="Calories burned">
@@ -96,40 +99,43 @@ export default function DashboardPage({ user, onNavigate }: Props) {
         </div>
       </div>
 
-      {/* Quick action tiles — Strava inspired */}
+      {/* Quick action tiles — Strava-style solid boxy tiles */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">Quick Actions</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+          <span className="inline-block w-3 h-[2px] bg-[#fc4c02] rounded-full" />
+          Quick Actions
+        </p>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {quickActions.map((a) => (
             <button key={a.label} onClick={() => onNavigate(a.page)}
-              className={`${a.grad} ${a.glow} rounded-2xl p-5 text-left transition-all hover:scale-[1.03] active:scale-[0.97]`}>
+              className={`${a.grad} ${a.glow} rounded-xl p-5 text-left transition-all hover:scale-[1.03] active:scale-[0.97] border border-white/10`}>
               <span className="text-3xl block mb-3">{a.icon}</span>
-              <p className="text-white font-bold text-sm leading-tight">{a.label}</p>
-              <p className="text-white/60 text-xs mt-1">Tap to open →</p>
+              <p className="text-white font-black text-sm leading-tight">{a.label}</p>
+              <p className="text-white/60 text-xs mt-1.5 font-medium">Tap to open →</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Summary cards */}
+      {/* Summary cards — MFP-style structured data rows */}
       <div className="grid gap-4 sm:grid-cols-3">
         {/* Health Profile */}
-        <div className="glass rounded-2xl p-5">
+        <div className="card-solid rounded-2xl p-5 border border-white/10 border-t-2 border-t-emerald-500/70">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-xl">🧬</span>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Health Profile</p>
+            <span className="text-lg">🧬</span>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Health Profile</p>
           </div>
           {profile ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-white/5">
               {[
                 ['Age',    profile.age,         ''],
                 ['Height', profile.height_cm,   ' cm'],
                 ['Weight', profile.weight_kg,   ' kg'],
                 ['Blood',  profile.blood_group, ''],
               ].map(([label, val, unit]) => (
-                <div key={label as string} className="flex justify-between items-center">
+                <div key={label as string} className="flex justify-between items-center py-2 first:pt-0 last:pb-0">
                   <span className="text-xs text-slate-500">{label}</span>
-                  <span className="text-sm font-bold text-white">{val ? `${val}${unit}` : '—'}</span>
+                  <span className="text-sm font-black text-white">{val ? `${val}${unit}` : '—'}</span>
                 </div>
               ))}
             </div>
@@ -139,22 +145,22 @@ export default function DashboardPage({ user, onNavigate }: Props) {
         </div>
 
         {/* Latest Vital */}
-        <div className="glass rounded-2xl p-5">
+        <div className="card-solid rounded-2xl p-5 border border-white/10 border-t-2 border-t-rose-500/70">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-xl">📊</span>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Latest Vital</p>
+            <span className="text-lg">📊</span>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Latest Vital</p>
           </div>
           {latestVital ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-white/5">
               {[
                 ['Heart Rate', latestVital.heart_rate, ' bpm', '#e11d48'],
                 ['BP',         latestVital.systolic_bp ? `${latestVital.systolic_bp}/${latestVital.diastolic_bp}` : null, ' mmHg', '#2563eb'],
                 ['SpO2',       latestVital.spo2,   '%',  '#7c3aed'],
                 ['Sleep',      latestVital.sleep_hours, 'h', '#0d9488'],
               ].map(([label, val, unit, color]) => (
-                <div key={label as string} className="flex justify-between items-center">
+                <div key={label as string} className="flex justify-between items-center py-2 first:pt-0 last:pb-0">
                   <span className="text-xs text-slate-500">{label}</span>
-                  <span className="text-sm font-bold" style={{ color: color as string }}>{val != null ? `${val}${unit}` : '—'}</span>
+                  <span className="text-sm font-black" style={{ color: color as string }}>{val != null ? `${val}${unit}` : '—'}</span>
                 </div>
               ))}
             </div>
@@ -164,24 +170,24 @@ export default function DashboardPage({ user, onNavigate }: Props) {
         </div>
 
         {/* Training Mode */}
-        <div className="glass rounded-2xl p-5">
+        <div className="card-solid rounded-2xl p-5 border border-white/10 border-t-2 border-t-violet-500/70">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-xl">🎯</span>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Training Mode</p>
+            <span className="text-lg">🎯</span>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Training Mode</p>
           </div>
           {mode ? (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
+            <div className="divide-y divide-white/5">
+              <div className="flex justify-between items-center py-2 first:pt-0">
                 <span className="text-xs text-slate-500">Mode</span>
                 <span className="text-sm font-black text-gradient-violet capitalize">{mode.mode}</span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center py-2">
                 <span className="text-xs text-slate-500">Calories</span>
-                <span className="text-sm font-bold text-orange-400">{mode.targets?.targetCalories ?? '—'} kcal</span>
+                <span className="text-sm font-black text-orange-400">{mode.targets?.targetCalories ?? '—'} kcal</span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center py-2 last:pb-0">
                 <span className="text-xs text-slate-500">Protein</span>
-                <span className="text-sm font-bold text-blue-400">{mode.targets?.proteinGrams ?? '—'} g</span>
+                <span className="text-sm font-black text-blue-400">{mode.targets?.proteinGrams ?? '—'} g</span>
               </div>
             </div>
           ) : (

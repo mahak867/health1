@@ -187,6 +187,134 @@ const defaultForm = {
   volumeProgression: '0.5',
 };
 
+const TIER_INFO: Record<string, { label: string; range: string; desc: string; tip: string }> = {
+  wood:     { label: 'Beginner',    range: '0 – 99',     desc: 'Just starting your strength journey. Every rep counts.',           tip: 'Focus on form before adding weight.' },
+  bronze:   { label: 'Novice',      range: '100 – 299',  desc: 'Building a foundation. You show up and that matters.',             tip: 'Add one workout per week to accelerate.' },
+  silver:   { label: 'Intermediate',range: '300 – 599',  desc: 'Solid fundamentals. Consistency is your competitive edge.',        tip: 'Track progressive overload each session.' },
+  gold:     { label: 'Proficient',  range: '600 – 999',  desc: 'Strong and reliable. Real muscle memory is forming.',             tip: 'Prioritize sleep — it\'s when you grow.' },
+  platinum: { label: 'Advanced',    range: '1000 – 1499',desc: 'Serious athlete territory. Your volume is genuinely impressive.',  tip: 'Deload every 4–6 weeks to avoid plateau.' },
+  diamond:  { label: 'Elite',       range: '1500 – 2199',desc: 'Top-tier performance. Your dedication is extraordinary.',         tip: 'Nutrition periodization unlocks the next level.' },
+  champion: { label: 'Master',      range: '2200 – 2999',desc: 'Elite-level strength. You inspire people around you.',            tip: 'Mentorship and coaching accelerate final gains.' },
+  titan:    { label: 'Legend',      range: '3000 – 3999',desc: 'Extraordinary power. You are near the absolute pinnacle.',        tip: 'Technique refinement separates legend from myth.' },
+  olympian: { label: 'Mythic',      range: '4000+',      desc: 'The pinnacle of human performance. You have mastered this.',      tip: '🏆 You have reached the highest tier.' },
+};
+
+/** Full descriptive boxy tier progression diagram */
+function TierDiagram({ currentTier, currentProgress }: { currentTier?: string; currentProgress?: number }) {
+  return (
+    <div className="card-solid rounded-2xl border border-white/10 overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-white/8 flex items-center gap-3">
+        <span className="text-lg">📈</span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Tier Progression Diagram</p>
+          <p className="text-[11px] text-slate-600 mt-0.5">All 9 tiers — score ranges, descriptions &amp; tips</p>
+        </div>
+      </div>
+
+      {/* Scrollable horizontal row of tier boxes */}
+      <div className="overflow-x-auto p-4">
+        <div className="flex gap-3" style={{ minWidth: 'max-content' }}>
+          {TIER_ORDER.map((tier, idx) => {
+            const style   = TIER_STYLES[tier];
+            const info    = TIER_INFO[tier];
+            const isCurrent = currentTier === tier;
+            const isPassed  = currentTier ? TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf(currentTier) : false;
+            const isLocked  = currentTier ? TIER_ORDER.indexOf(tier) > TIER_ORDER.indexOf(currentTier) : !currentTier;
+
+            return (
+              <div
+                key={tier}
+                className="relative flex flex-col rounded-xl overflow-hidden transition-all duration-200"
+                style={{
+                  width: 172,
+                  border: isCurrent
+                    ? `2px solid ${style.color}`
+                    : '1px solid rgba(255,255,255,0.08)',
+                  background: isCurrent
+                    ? `linear-gradient(160deg, ${style.color}18, #0f0f1e)`
+                    : isPassed
+                    ? '#151522'
+                    : '#0f0f1e',
+                  boxShadow: isCurrent ? `0 0 24px ${style.color}33` : 'none',
+                  opacity: isLocked && !isCurrent ? 0.55 : 1,
+                }}
+              >
+                {/* Tier number badge */}
+                <div
+                  className="absolute top-2 right-2 text-[10px] font-black px-1.5 py-0.5 rounded-sm"
+                  style={{ background: `${style.color}22`, color: style.color }}
+                >
+                  #{idx + 1}
+                </div>
+
+                {/* Header band */}
+                <div
+                  className="px-4 pt-4 pb-3"
+                  style={{ borderBottom: `1px solid ${style.color}22` }}
+                >
+                  <TierBadge tier={tier} size={46} active={isCurrent} passed={isPassed} />
+                  <div className="mt-2">
+                    <p className="text-base font-black text-white capitalize leading-tight">{tier}</p>
+                    <p className="text-[11px] font-semibold mt-0.5" style={{ color: style.color }}>{info.label}</p>
+                  </div>
+                </div>
+
+                {/* Score range */}
+                <div className="px-4 py-2.5" style={{ borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Score Range</p>
+                  <p className="text-sm font-black text-white">{info.range}</p>
+                </div>
+
+                {/* Description */}
+                <div className="px-4 py-2.5 flex-1" style={{ borderBottom: `1px solid rgba(255,255,255,0.06)` }}>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Description</p>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">{info.desc}</p>
+                </div>
+
+                {/* Tip */}
+                <div className="px-4 py-3">
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Pro Tip</p>
+                  <p className="text-[11px] leading-relaxed" style={{ color: style.color }}>{info.tip}</p>
+                </div>
+
+                {/* Status footer */}
+                <div
+                  className="px-4 py-2 text-center text-[10px] font-black uppercase tracking-widest"
+                  style={{
+                    background: isCurrent ? `${style.color}22` : isPassed ? '#1f1f30' : '#0a0a14',
+                    color: isCurrent ? style.color : isPassed ? '#4b5563' : '#1f2937',
+                  }}
+                >
+                  {isCurrent ? '▶ CURRENT' : isPassed ? '✓ ACHIEVED' : '🔒 LOCKED'}
+                </div>
+
+                {/* Current tier: mini progress bar at bottom */}
+                {isCurrent && typeof currentProgress === 'number' && (
+                  <div className="h-1" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <div
+                      className="h-full transition-all duration-700"
+                      style={{ width: `${currentProgress}%`, background: style.color, boxShadow: `0 0 6px ${style.color}` }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="px-5 py-3 border-t border-white/8 flex flex-wrap gap-4 text-[11px] text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[#fc4c02] opacity-80"/>Current tier</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-slate-600 opacity-60"/>Achieved</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-slate-800 opacity-60"/>Locked</span>
+        <span className="ml-auto text-slate-600">Scroll right to see all 9 tiers →</span>
+      </div>
+    </div>
+  );
+}
+
 /* ================================================================== */
 
 export default function RankingPage() {
@@ -293,8 +421,9 @@ export default function RankingPage() {
       <div className="grid gap-6 lg:grid-cols-[auto_1fr_1fr]">
 
         {/* ── Body map ── */}
-        <div className="glass rounded-2xl p-5 flex flex-col items-center gap-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 self-start w-full">
+        <div className="card-solid rounded-2xl border border-white/10 p-5 flex flex-col items-center gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 self-start w-full flex items-center gap-2">
+            <span className="inline-block w-3 h-[2px] bg-[#fc4c02] rounded-full" />
             Body Map
           </p>
           <BodyMap
@@ -305,8 +434,9 @@ export default function RankingPage() {
         </div>
 
         {/* ── Calculator form ── */}
-        <div className="glass rounded-2xl p-5 space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <div className="card-solid rounded-2xl border border-white/10 p-5 space-y-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <span className="inline-block w-3 h-[2px] bg-[#fc4c02] rounded-full" />
             Rank Calculator
           </p>
 
@@ -375,7 +505,7 @@ export default function RankingPage() {
 
         {/* ── Rank result ── */}
         {previewRank && tierStyle && divInfo ? (
-          <div className="glass rounded-2xl overflow-hidden">
+          <div className="card-solid rounded-2xl border border-white/10 overflow-hidden">
             {/* Card header — gradient bg matching tier */}
             <div className={`bg-gradient-to-br ${tierStyle.bg} p-5 flex items-center gap-4
               border-b border-white/5`}
@@ -496,7 +626,7 @@ export default function RankingPage() {
             </div>
           </div>
         ) : (
-          <div className="glass rounded-2xl p-5 flex flex-col items-center justify-center
+          <div className="card-solid rounded-2xl border border-white/10 p-5 flex flex-col items-center justify-center
             text-center min-h-64 gap-4">
             <span className="text-5xl">🏋️</span>
             <p className="text-sm text-slate-500">
@@ -520,10 +650,17 @@ export default function RankingPage() {
         )}
       </div>
 
+      {/* ── Descriptive boxy tier progression diagram ── */}
+      <TierDiagram
+        currentTier={previewRank?.current.name}
+        currentProgress={previewRank?.progress}
+      />
+
       {/* ── My saved rankings ── */}
       {myRankings.length > 0 && (
-        <div className="glass rounded-2xl p-5 space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <div className="card-solid rounded-2xl border border-white/10 p-5 space-y-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <span className="inline-block w-3 h-[2px] bg-yellow-400 rounded-full" />
             My Saved Rankings
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -537,7 +674,7 @@ export default function RankingPage() {
               );
               return (
                 <div key={r.id}
-                  className={`glass rounded-xl overflow-hidden border border-white/5`}
+                  className={`card-solid-raised rounded-xl overflow-hidden border border-white/8`}
                 >
                   <div className={`bg-gradient-to-br ${style.bg} px-4 pt-4 pb-3 flex items-center gap-3`}
                     style={{ boxShadow: `inset 0 0 30px ${style.glow}` }}
