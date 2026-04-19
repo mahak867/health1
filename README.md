@@ -15,7 +15,7 @@ Production-ready monorepo scaffold for a unified healthcare, workout, and nutrit
 ## Quick start
 
 1. Copy env:
-   - `cp /home/runner/work/health1/health1/.env.example /home/runner/work/health1/health1/.env`
+   - `cp .env.example .env`
 2. Install dependencies:
    - `npm install`
 3. Start backend:
@@ -28,10 +28,11 @@ Production-ready monorepo scaffold for a unified healthcare, workout, and nutrit
 
 ## Database
 
-- Initial schema: `/home/runner/work/health1/health1/db/migrations/0001_init.sql`
+- Initial schema: `db/migrations/0001_init.sql`
+- Core MVP extensions: `db/migrations/0002_core_mvp_extensions.sql`
 
 ## API and architecture docs
 
-- Platform architecture: `/home/runner/work/health1/health1/docs/architecture.md`
-- API overview: `/home/runner/work/health1/health1/docs/api.md`
-- Deployment guide: `/home/runner/work/health1/health1/docs/deployment.md`
+- Platform architecture: `docs/architecture.md`
+- API overview: `docs/api.md`
+- Deployment guide: `docs/deployment.md`

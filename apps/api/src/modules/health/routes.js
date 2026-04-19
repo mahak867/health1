@@ -1,11 +1,200 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { query } from '../../config/db.js';
+
+const profileSchema = z.object({
+  age: z.number().int().min(0).max(130).nullable().optional(),
+  heightCm: z.number().min(30).max(300).nullable().optional(),
+  weightKg: z.number().min(2).max(500).nullable().optional(),
+  bloodGroup: z.string().max(10).nullable().optional(),
+  medicalConditions: z.array(z.string()).optional(),
+  allergies: z.array(z.string()).optional(),
+  emergencyContacts: z.array(z.record(z.any())).optional()
+});
+
+const vitalsSchema = z.object({
+  recordedAt: z.string().datetime(),
+  heartRate: z.number().int().min(20).max(260).nullable().optional(),
+  systolicBp: z.number().int().min(50).max(260).nullable().optional(),
+  diastolicBp: z.number().int().min(30).max(180).nullable().optional(),
+  spo2: z.number().min(0).max(100).nullable().optional(),
+  temperatureC: z.number().min(30).max(45).nullable().optional(),
+  sleepHours: z.number().min(0).max(24).nullable().optional(),
+  stressLevel: z.number().int().min(0).max(10).nullable().optional(),
+  caloriesBurned: z.number().int().min(0).nullable().optional()
+});
+
+const recordSchema = z.object({
+  title: z.string().min(1),
+  recordType: z.string().min(1),
+  details: z.record(z.any()).optional(),
+  recordedAt: z.string().datetime().optional()
+});
+
+const medicationSchema = z.object({
+  medicationName: z.string().min(1),
+  dosage: z.string().nullable().optional(),
+  frequency: z.string().nullable().optional(),
+  startedAt: z.string().datetime().nullable().optional(),
+  endedAt: z.string().datetime().nullable().optional(),
+  instructions: z.string().nullable().optional()
+});
 
 export const healthModuleRouter = Router();
 
-healthModuleRouter.get('/profile', (_req, res) => {
-  res.json({ module: 'health', message: 'Health profile endpoint ready.' });
+healthModuleRouter.get('/profile', async (req, res, next) => {
+  try {
+    const result = await query('SELECT * FROM health_profiles WHERE user_id = $1', [req.user.sub]);
+    return res.json({ profile: result.rows[0] ?? null });
+  } catch (error) {
+    return next(error);
+  }
 });
 
-healthModuleRouter.get('/vitals', (_req, res) => {
-  res.json({ module: 'health', message: 'Vital tracking endpoint ready.' });
+healthModuleRouter.put('/profile', async (req, res, next) => {
+  try {
+    const input = profileSchema.parse(req.body);
+    const updated = await query(
+      `INSERT INTO health_profiles (user_id, age, height_cm, weight_kg, blood_group, medical_conditions, allergies, emergency_contacts, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
+       ON CONFLICT (user_id)
+       DO UPDATE SET
+         age = EXCLUDED.age,
+         height_cm = EXCLUDED.height_cm,
+         weight_kg = EXCLUDED.weight_kg,
+         blood_group = EXCLUDED.blood_group,
+         medical_conditions = EXCLUDED.medical_conditions,
+         allergies = EXCLUDED.allergies,
+         emergency_contacts = EXCLUDED.emergency_contacts,
+         updated_at = NOW()
+       RETURNING *`,
+      [
+        req.user.sub,
+        input.age ?? null,
+        input.heightCm ?? null,
+        input.weightKg ?? null,
+        input.bloodGroup ?? null,
+        input.medicalConditions ?? [],
+        input.allergies ?? [],
+        JSON.stringify(input.emergencyContacts ?? [])
+      ]
+    );
+
+    return res.json({ profile: updated.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.get('/vitals', async (req, res, next) => {
+  try {
+    const limit = Number(req.query.limit ?? 50);
+    const cappedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, limit)) : 50;
+
+    const result = await query(
+      'SELECT * FROM vitals WHERE user_id = $1 ORDER BY recorded_at DESC LIMIT $2',
+      [req.user.sub, cappedLimit]
+    );
+
+    return res.json({ vitals: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/vitals', async (req, res, next) => {
+  try {
+    const input = vitalsSchema.parse(req.body);
+
+    const created = await query(
+      `INSERT INTO vitals (
+         user_id, recorded_at, heart_rate, systolic_bp, diastolic_bp, spo2, temperature_c, sleep_hours, stress_level, calories_burned
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING *`,
+      [
+        req.user.sub,
+        input.recordedAt,
+        input.heartRate ?? null,
+        input.systolicBp ?? null,
+        input.diastolicBp ?? null,
+        input.spo2 ?? null,
+        input.temperatureC ?? null,
+        input.sleepHours ?? null,
+        input.stressLevel ?? null,
+        input.caloriesBurned ?? null
+      ]
+    );
+
+    return res.status(201).json({ vital: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.get('/records', async (req, res, next) => {
+  try {
+    const result = await query(
+      'SELECT * FROM health_records WHERE user_id = $1 ORDER BY recorded_at DESC, created_at DESC LIMIT 100',
+      [req.user.sub]
+    );
+    return res.json({ records: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/records', async (req, res, next) => {
+  try {
+    const input = recordSchema.parse(req.body);
+    const created = await query(
+      `INSERT INTO health_records (user_id, title, record_type, details, recorded_at)
+       VALUES ($1, $2, $3, $4::jsonb, COALESCE($5, NOW()))
+       RETURNING *`,
+      [req.user.sub, input.title, input.recordType, JSON.stringify(input.details ?? {}), input.recordedAt ?? null]
+    );
+
+    return res.status(201).json({ record: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.get('/medications', async (req, res, next) => {
+  try {
+    const result = await query('SELECT * FROM medications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100', [req.user.sub]);
+    return res.json({ medications: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/medications', async (req, res, next) => {
+  try {
+    const input = medicationSchema.parse(req.body);
+    const created = await query(
+      `INSERT INTO medications (user_id, medication_name, dosage, frequency, started_at, ended_at, instructions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        req.user.sub,
+        input.medicationName,
+        input.dosage ?? null,
+        input.frequency ?? null,
+        input.startedAt ?? null,
+        input.endedAt ?? null,
+        input.instructions ?? null
+      ]
+    );
+
+    return res.status(201).json({ medication: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/emergency/trigger', async (_req, res) => {
+  return res.status(202).json({
+    status: 'accepted',
+    message: 'Emergency workflow trigger received; notifier/provider escalation integration to be configured.'
+  });
 });
