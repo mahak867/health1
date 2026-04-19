@@ -17,6 +17,7 @@ import ProfilePage from './pages/ProfilePage';
 import RankingPage from './pages/RankingPage';
 import GamificationPage from './pages/GamificationPage';
 import AiPage from './pages/AiPage';
+import BreathworkPage from './pages/BreathworkPage';
 import Navbar from './components/Navbar';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -36,6 +37,7 @@ const PAGES: Record<string, React.FC<any>> = {
   Ranking: RankingPage,
   Gamification: GamificationPage,
   'AI Engine': AiPage,
+  Breathwork: BreathworkPage,
 };
 
 function App() {

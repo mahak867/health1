@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/local_db.dart';
 import '../services/widget_service.dart';
-import '../screens/home_screen.dart' show _kPrefHr, _kPrefSleep;
+
+// SharedPreferences keys (must match home_screen.dart)
+const _kPrefHr    = 'pref_heart_rate';
+const _kPrefSleep = 'pref_sleep_hrs';
 
 class VitalsScreen extends StatefulWidget {
   const VitalsScreen({super.key});

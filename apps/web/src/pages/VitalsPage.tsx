@@ -131,6 +131,26 @@ export default function VitalsPage() {
   const spo2Data  = [...vitals].reverse().map((v) => v.spo2).filter((n): n is number => n != null);
   const weightData = [...weightLogs].reverse().map((l) => Number(l.weight_kg));
 
+  // HRV proxy — RMSSD-style from successive HR differences
+  const hrvValues: { t: string; v: number }[] = [];
+  const hrSeries = [...vitals].reverse().filter((v) => v.heart_rate != null);
+  for (let i = 1; i < hrSeries.length; i++) {
+    const diff = Math.abs((hrSeries[i].heart_rate ?? 0) - (hrSeries[i - 1].heart_rate ?? 0));
+    hrvValues.push({ t: hrSeries[i].recorded_at, v: parseFloat(diff.toFixed(1)) });
+  }
+  const latestHrv = hrvValues.length > 0 ? hrvValues[hrvValues.length - 1].v : null;
+  const avgHrv    = hrvValues.length > 0
+    ? parseFloat((hrvValues.reduce((s, h) => s + h.v, 0) / hrvValues.length).toFixed(1))
+    : null;
+  const hrvColor  = latestHrv == null ? '#6b7280'
+    : latestHrv < 5  ? '#22c55e'
+    : latestHrv < 15 ? '#f59e0b'
+    : '#ef4444';
+  const hrvLabel  = latestHrv == null ? '—'
+    : latestHrv < 5  ? 'Stable'
+    : latestHrv < 15 ? 'Moderate variability'
+    : 'High variability';
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
@@ -194,6 +214,36 @@ export default function VitalsPage() {
               <span className="text-xl">🔥</span>
             </Ring>
           </div>
+        </div>
+      )}
+
+      {/* ─── HRV Proxy Trend ─── */}
+      {hrvValues.length >= 2 && (
+        <div className="glass rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🫀 HRV Proxy (HR Variability)</p>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ background: `${hrvColor}22`, color: hrvColor }}>
+              {hrvLabel}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-black" style={{ color: hrvColor }}>{latestHrv ?? '—'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Latest (ms proxy)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-black text-slate-200">{avgHrv ?? '—'}</p>
+              <p className="text-xs text-slate-500 mt-0.5">7-reading avg</p>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Calculated from successive HR differences.
+                Lower variability = more recovered.
+              </p>
+            </div>
+          </div>
+          <Sparkline data={hrvValues.map((h) => h.v)} color={hrvColor} height={48} />
         </div>
       )}
 

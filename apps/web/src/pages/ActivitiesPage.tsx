@@ -15,6 +15,30 @@ interface Activity {
   started_at: string | null;
   completed_at: string;
   kudos_count?: number;
+  route_points?: Array<{ lat: number; lon: number }>;
+}
+
+/** Render a tiny SVG polyline map from lat/lon points */
+function RouteMiniMap({ points, color }: { points: Array<{ lat: number; lon: number }>; color: string }) {
+  if (points.length < 2) return null;
+  const W = 80; const H = 48;
+  const minLat = Math.min(...points.map((p) => p.lat));
+  const maxLat = Math.max(...points.map((p) => p.lat));
+  const minLon = Math.min(...points.map((p) => p.lon));
+  const maxLon = Math.max(...points.map((p) => p.lon));
+  const latR = maxLat - minLat || 1e-9;
+  const lonR = maxLon - minLon || 1e-9;
+  const pad = 4;
+  const toX = (lon: number) => pad + ((lon - minLon) / lonR) * (W - pad * 2);
+  const toY = (lat: number) => H - pad - ((lat - minLat) / latR) * (H - pad * 2);
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.lon).toFixed(1)},${toY(p.lat).toFixed(1)}`).join(' ');
+  return (
+    <svg width={W} height={H} className="rounded-lg shrink-0" style={{ background: `${color}11` }}>
+      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+      <circle cx={toX(points[0].lon)} cy={toY(points[0].lat)} r="3" fill="#22c55e" />
+      <circle cx={toX(points[points.length - 1].lon)} cy={toY(points[points.length - 1].lat)} r="3" fill="#ef4444" />
+    </svg>
+  );
 }
 
 /** Karvonen HR zones (5 zones) from avg HR approximation */
@@ -257,6 +281,11 @@ export default function ActivitiesPage() {
                   {a.elevation_m     != null && a.elevation_m > 0 && <Stat icon="⛰️" v={`${a.elevation_m}m`} />}
                 </div>
                 {a.notes && <p className="text-slate-500 text-xs mt-2 truncate">{a.notes}</p>}
+                {a.route_points && a.route_points.length >= 2 && (
+                  <div className="mt-2">
+                    <RouteMiniMap points={a.route_points} color={color} />
+                  </div>
+                )}
               </div>
               <button onClick={() => handleKudos(a.id)}
                 className="shrink-0 flex flex-col items-center gap-0.5 text-slate-500 hover:text-yellow-400 transition-colors">
