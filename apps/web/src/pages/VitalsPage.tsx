@@ -35,12 +35,20 @@ export default function VitalsPage() {
   const [weightLogs, setWeightLogs] = useState<any[]>([]);
   const [weightForm, setWeightForm] = useState({ weightKg: '', bodyFatPct: '' });
   const [savingWeight, setSavingWeight] = useState(false);
-  const [activeTab, setActiveTab] = useState<'vitals' | 'medications'>('vitals');
+  const [activeTab, setActiveTab] = useState<'vitals' | 'medications' | 'labs'>('vitals');
   // Sleep stages
   const [sleepForm, setSleepForm] = useState({ totalHours: '', remHours: '', deepHours: '', lightHours: '', date: new Date().toISOString().slice(0,16) });
   const [savingSleep, setSavingSleep] = useState(false);
   // Medications
   const [medications, setMedications] = useState<any[]>([]);
+  const [labResults, setLabResults] = useState<any[]>([]);
+  const [labForm, setLabForm] = useState({
+    testDate: new Date().toISOString().slice(0,10), testName: '',
+    totalCholesterol: '', hdl: '', ldl: '', triglycerides: '',
+    fastingGlucose: '', hba1c: '', vitaminD: '', vitaminB12: '',
+    vo2max: '', notes: ''
+  });
+  const [savingLab, setSavingLab] = useState(false);
   const [medForm, setMedForm] = useState({ medicationName: '', dosage: '', frequency: '', instructions: '' });
   const [savingMed, setSavingMed] = useState(false);
 
@@ -53,7 +61,36 @@ export default function VitalsPage() {
   function loadMedications() {
     api.get<{ medications: any[] }>('/health/medications').then((r) => setMedications(r.medications)).catch(() => {});
   }
-  useEffect(() => { load(); loadWeight(); loadMedications(); }, []);
+  function loadLabs() {
+    api.get<{ labResults: any[] }>('/health/lab-results').then((r) => setLabResults(r.labResults)).catch(() => {});
+  }
+  useEffect(() => { load(); loadWeight(); loadMedications(); loadLabs(); }, []);
+
+  async function saveLabResult(e: React.FormEvent) {
+    e.preventDefault();
+    if (!labForm.testName) return;
+    setSavingLab(true);
+    try {
+      const body: any = {
+        testDate: new Date(labForm.testDate).toISOString(),
+        testName: labForm.testName,
+      };
+      if (labForm.totalCholesterol) body.totalCholesterolMgdl = Number(labForm.totalCholesterol);
+      if (labForm.hdl)              body.hdlMgdl               = Number(labForm.hdl);
+      if (labForm.ldl)              body.ldlMgdl               = Number(labForm.ldl);
+      if (labForm.triglycerides)    body.triglyceridesMgdl      = Number(labForm.triglycerides);
+      if (labForm.fastingGlucose)   body.fastingGlucoseMgdl     = Number(labForm.fastingGlucose);
+      if (labForm.hba1c)            body.hba1cPct               = Number(labForm.hba1c);
+      if (labForm.vitaminD)         body.vitaminDNgml           = Number(labForm.vitaminD);
+      if (labForm.vitaminB12)       body.vitaminB12Pgml         = Number(labForm.vitaminB12);
+      if (labForm.vo2max)           body.vo2maxMlkgmin          = Number(labForm.vo2max);
+      if (labForm.notes)            body.notes                  = labForm.notes;
+      await api.post('/health/lab-results', body);
+      setLabForm({ testDate: new Date().toISOString().slice(0,10), testName: '', totalCholesterol: '', hdl: '', ldl: '', triglycerides: '', fastingGlucose: '', hba1c: '', vitaminD: '', vitaminB12: '', vo2max: '', notes: '' });
+      loadLabs();
+    } catch (_) {}
+    setSavingLab(false);
+  }
 
   async function handleSleepStages(e: React.FormEvent) {
     e.preventDefault();
@@ -182,7 +219,7 @@ export default function VitalsPage() {
 
       {/* Tabs */}
       <div className="flex gap-2">
-        {([['vitals', '📊 Vitals & Trends'], ['medications', '💊 Medications']] as const).map(([t, label]) => (
+        {([['vitals', '📊 Vitals & Trends'], ['medications', '💊 Medications'], ['labs', '🔬 Lab Results']] as const).map(([t, label]) => (
           <button key={t} onClick={() => setActiveTab(t)}
             className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === t ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
             {label}
@@ -661,6 +698,118 @@ export default function VitalsPage() {
                       className="text-xs text-slate-600 hover:text-red-400 transition-colors px-2 py-1 rounded shrink-0">
                       ✕
                     </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* ─── Lab Results Tab ─── */}
+      {activeTab === 'labs' && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Log new lab result */}
+          <Card title="🔬 Log Lab Results" accent="teal">
+            <form onSubmit={saveLabResult} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-1">Test Date</p>
+                  <input type="date" value={labForm.testDate}
+                    onChange={(e) => setLabForm((f) => ({ ...f, testDate: e.target.value }))}
+                    className="w-full rounded-xl glass px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-teal-500/50" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-1">Test Name</p>
+                  <input placeholder="e.g. Annual Panel" value={labForm.testName}
+                    onChange={(e) => setLabForm((f) => ({ ...f, testName: e.target.value }))}
+                    className="w-full rounded-xl glass px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500/50" required />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-2">Lipid Panel (mg/dL)</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[['Total Chol', 'totalCholesterol'], ['HDL', 'hdl'], ['LDL', 'ldl'], ['Triglycerides', 'triglycerides']].map(([l, k]) => (
+                  <div key={k}>
+                    <p className="text-[9px] text-slate-600 mb-0.5">{l}</p>
+                    <input type="number" step="0.1" min="0" placeholder="—"
+                      value={(labForm as any)[k]}
+                      onChange={(e) => setLabForm((f) => ({ ...f, [k]: e.target.value }))}
+                      className="w-full rounded-xl glass px-2 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500/40" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-2">Glucose</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[['Fasting Glucose (mg/dL)', 'fastingGlucose'], ['HbA1c (%)', 'hba1c']].map(([l, k]) => (
+                  <div key={k}>
+                    <p className="text-[9px] text-slate-600 mb-0.5">{l}</p>
+                    <input type="number" step="0.1" min="0" placeholder="—"
+                      value={(labForm as any)[k]}
+                      onChange={(e) => setLabForm((f) => ({ ...f, [k]: e.target.value }))}
+                      className="w-full rounded-xl glass px-2 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500/40" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-2">Vitamins &amp; VO₂Max</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[['Vit D (ng/mL)', 'vitaminD'], ['B12 (pg/mL)', 'vitaminB12'], ['VO₂Max', 'vo2max']].map(([l, k]) => (
+                  <div key={k}>
+                    <p className="text-[9px] text-slate-600 mb-0.5">{l}</p>
+                    <input type="number" step="0.1" min="0" placeholder="—"
+                      value={(labForm as any)[k]}
+                      onChange={(e) => setLabForm((f) => ({ ...f, [k]: e.target.value }))}
+                      className="w-full rounded-xl glass px-2 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500/40" />
+                  </div>
+                ))}
+              </div>
+              <input placeholder="Notes (optional)" value={labForm.notes}
+                onChange={(e) => setLabForm((f) => ({ ...f, notes: e.target.value }))}
+                className="w-full rounded-xl glass px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-teal-500/40" />
+              <button type="submit" disabled={savingLab || !labForm.testName}
+                className="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+                {savingLab ? 'Saving…' : '🔬 Save Lab Results'}
+              </button>
+            </form>
+          </Card>
+
+          {/* Lab results history */}
+          <Card title="📋 Results History" accent="teal">
+            {labResults.length === 0 ? (
+              <p className="text-xs text-slate-600">No lab results logged. Log your blood tests, lipid panels, and more.</p>
+            ) : (
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                {labResults.map((r) => (
+                  <div key={r.id} className="glass rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-white">{r.test_name}</p>
+                      <p className="text-[10px] text-slate-500">{new Date(r.test_date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                      {[
+                        ['Total Cholesterol', r.total_cholesterol_mgdl, 'mg/dL', 200, 239, false],
+                        ['HDL',               r.hdl_mgdl,               'mg/dL', 60,  40,  true],
+                        ['LDL',               r.ldl_mgdl,               'mg/dL', 100, 129, false],
+                        ['Triglycerides',     r.triglycerides_mgdl,     'mg/dL', 150, 199, false],
+                        ['Fasting Glucose',   r.fasting_glucose_mgdl,   'mg/dL', 100, 125, false],
+                        ['HbA1c',             r.hba1c_pct,              '%',     5.7, 6.4, false],
+                        ['Vitamin D',         r.vitamin_d_ngml,         'ng/mL', 30,  20,  true],
+                        ['Vitamin B12',       r.vitamin_b12_pgml,       'pg/mL', 300, 200, true],
+                        ['VO₂Max',            r.vo2max_mlkgmin,         'mL/kg/min', 50, 35, true],
+                      ].map(([label, val, unit, good, borderline, higherBetter]) =>
+                        val != null && (
+                          <div key={String(label)} className="flex items-center gap-1 text-[10px]">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              higherBetter
+                                ? Number(val) >= Number(good) ? 'bg-green-500' : Number(val) >= Number(borderline) ? 'bg-yellow-500' : 'bg-red-500'
+                                : Number(val) <= Number(good) ? 'bg-green-500' : Number(val) <= Number(borderline) ? 'bg-yellow-500' : 'bg-red-500'
+                            }`} />
+                            <span className="text-slate-400">{label}:</span>
+                            <span className="text-white font-semibold">{Number(val).toFixed(1)} {unit}</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                    {r.notes && <p className="text-[10px] text-slate-500 italic">{r.notes}</p>}
                   </div>
                 ))}
               </div>

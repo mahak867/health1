@@ -3,7 +3,7 @@ import Card from '../components/Card';
 import Ring from '../components/Ring';
 import { api } from '../lib/api';
 
-interface Meal { id: string; meal_type: string; meal_name: string; consumed_at: string; calories: number|null; protein_g: number|null; carbs_g: number|null; fat_g: number|null; }
+interface Meal { id: string; meal_type: string; meal_name: string; consumed_at: string; calories: number|null; protein_g: number|null; carbs_g: number|null; fat_g: number|null; fiber_g: number|null; sugar_g: number|null; sodium_mg: number|null; }
 
 const emptyM = { mealType: 'breakfast', mealName: '', consumedAt: new Date().toISOString().slice(0, 16), calories: '', proteinG: '', carbsG: '', fatG: '' };
 
@@ -332,6 +332,48 @@ export default function MealsPage() {
         );
       })()}
 
+      {/* ─── Micronutrients (Fiber / Sugar / Sodium) ─── */}
+      {(() => {
+        const totalFiber  = today.reduce((s, m) => s + (m.fiber_g   ?? 0), 0);
+        const totalSugar  = today.reduce((s, m) => s + (m.sugar_g   ?? 0), 0);
+        const totalSodium = today.reduce((s, m) => s + (m.sodium_mg ?? 0), 0);
+        if (totalFiber === 0 && totalSugar === 0 && totalSodium === 0) return null;
+        // DRI targets: fiber 25-38g, sugar <50g (WHO), sodium <2300mg
+        const nutrients = [
+          { icon: '🌾', label: 'Fiber',  val: totalFiber,  unit: 'g',  target: 30,   color: '#22c55e',  warnHigh: false },
+          { icon: '🍬', label: 'Sugar',  val: totalSugar,  unit: 'g',  target: 50,   color: '#f59e0b',  warnHigh: true  },
+          { icon: '🧂', label: 'Sodium', val: totalSodium, unit: 'mg', target: 2300, color: '#3b82f6',  warnHigh: true  },
+        ];
+        return (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">🔬 Micronutrients</p>
+            <div className="space-y-3">
+              {nutrients.map(({ icon, label, val, unit, target, color, warnHigh }) => {
+                const pct  = Math.min((val / target) * 100, 100);
+                const over = val > target;
+                const barColor = over && warnHigh ? '#ef4444' : !over && !warnHigh ? '#f59e0b' : color;
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-white">{icon} {label}</span>
+                      <span className="text-xs" style={{ color: barColor }}>
+                        {unit === 'mg' ? val.toFixed(0) : val.toFixed(1)}{unit}
+                        <span className="text-slate-500"> / {target}{unit}</span>
+                        {over && warnHigh && <span className="ml-1 text-red-400">⚠️ over</span>}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor, opacity: 0.85 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-slate-600 mt-2">Targets: Fiber ≥25g · Sugar &lt;50g (WHO) · Sodium &lt;2300mg (AHA)</p>
+          </div>
+        );
+      })()}
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Log form */}
         <Card title="Log Meal" accent="orange">
@@ -397,6 +439,8 @@ export default function MealsPage() {
                     {m.protein_g  != null && <span className="text-xs text-blue-300 font-semibold">P {m.protein_g}g</span>}
                     {m.carbs_g    != null && <span className="text-xs text-amber-300 font-semibold">C {m.carbs_g}g</span>}
                     {m.fat_g      != null && <span className="text-xs text-rose-300 font-semibold">F {m.fat_g}g</span>}
+                    {m.fiber_g    != null && m.fiber_g > 0 && <span className="text-xs text-green-300 font-semibold">Fiber {m.fiber_g}g</span>}
+                    {m.sodium_mg  != null && m.sodium_mg > 0 && <span className="text-xs text-slate-300 font-semibold">Na {m.sodium_mg}mg</span>}
                   </div>
                 </div>
               ))}
@@ -404,6 +448,50 @@ export default function MealsPage() {
           )}
         </Card>
       </div>
+
+      {/* ─── Meal History Calendar (14 days) ─── */}
+      {tab === 'log' && meals.length > 0 && (() => {
+        const days: { date: string; label: string; calories: number; mealCount: number }[] = [];
+        for (let i = 13; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const ds = d.toDateString();
+          const dayMeals = meals.filter((m) => new Date(m.consumed_at).toDateString() === ds);
+          days.push({
+            date: ds,
+            label: i === 0 ? 'Today' : i === 1 ? 'Yest' : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }),
+            calories: dayMeals.reduce((s, m) => s + (m.calories ?? 0), 0),
+            mealCount: dayMeals.length,
+          });
+        }
+        const calTarget = modeTargets?.targetCalories ?? 2000;
+        const maxCal = Math.max(...days.map((d) => d.calories), calTarget);
+        return (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">📅 14-Day Calorie History</p>
+            <div className="flex items-end gap-1.5 h-20">
+              {days.map((d) => {
+                const h = d.calories > 0 ? Math.max(4, (d.calories / maxCal) * 64) : 2;
+                const color = d.calories === 0 ? '#ffffff10'
+                  : d.calories <= calTarget ? '#22c55e'
+                  : d.calories <= calTarget * 1.1 ? '#f59e0b'
+                  : '#ef4444';
+                return (
+                  <div key={d.date} className="flex flex-col items-center gap-1 flex-1" title={`${d.label}: ${d.calories} kcal, ${d.mealCount} meals`}>
+                    <div className="w-full rounded-t-sm" style={{ height: h, background: color, opacity: 0.85, minHeight: 2 }} />
+                    <span className="text-[8px] text-slate-600 truncate w-full text-center">{d.label.slice(0,4)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-4 mt-2 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-emerald-500 inline-block rounded opacity-85" /> At/under goal</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-amber-500 inline-block rounded opacity-85" /> 10% over</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-500 inline-block rounded opacity-85" /> &gt;10% over</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── Food Search Tab ─── */}
       {tab === 'search' && (

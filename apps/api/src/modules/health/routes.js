@@ -456,3 +456,83 @@ healthModuleRouter.post('/sleep-stages', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Lab Results ─────────────────────────────────────────────────────────────
+const labResultSchema = z.object({
+  testDate:               z.string(),
+  testName:               z.string().min(1),
+  totalCholesterolMgdl:   z.number().positive().optional(),
+  hdlMgdl:                z.number().positive().optional(),
+  ldlMgdl:                z.number().positive().optional(),
+  triglyceridesMgdl:      z.number().positive().optional(),
+  fastingGlucoseMgdl:     z.number().positive().optional(),
+  hba1cPct:               z.number().min(0).max(20).optional(),
+  hemoglobinGdl:          z.number().positive().optional(),
+  hematocritPct:          z.number().min(0).max(100).optional(),
+  tshMiul:                z.number().positive().optional(),
+  vitaminDNgml:           z.number().positive().optional(),
+  vitaminB12Pgml:         z.number().positive().optional(),
+  ferritinNgml:           z.number().positive().optional(),
+  vo2maxMlkgmin:          z.number().positive().optional(),
+  notes:                  z.string().optional(),
+});
+
+healthRouter.get('/lab-results', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT * FROM lab_results WHERE user_id = $1 ORDER BY test_date DESC LIMIT 50`,
+      [req.user.sub]
+    );
+    return res.json({ labResults: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthRouter.post('/lab-results', async (req, res, next) => {
+  try {
+    const data = labResultSchema.parse(req.body);
+    const result = await query(
+      `INSERT INTO lab_results (
+         user_id, test_date, test_name,
+         total_cholesterol_mgdl, hdl_mgdl, ldl_mgdl, triglycerides_mgdl,
+         fasting_glucose_mgdl, hba1c_pct,
+         hemoglobin_gdl, hematocrit_pct, tsh_miul,
+         vitamin_d_ngml, vitamin_b12_pgml, ferritin_ngml,
+         vo2max_mlkgmin, notes
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       RETURNING *`,
+      [
+        req.user.sub,
+        new Date(data.testDate).toISOString(),
+        data.testName,
+        data.totalCholesterolMgdl ?? null,
+        data.hdlMgdl ?? null,
+        data.ldlMgdl ?? null,
+        data.triglyceridesMgdl ?? null,
+        data.fastingGlucoseMgdl ?? null,
+        data.hba1cPct ?? null,
+        data.hemoglobinGdl ?? null,
+        data.hematocritPct ?? null,
+        data.tshMiul ?? null,
+        data.vitaminDNgml ?? null,
+        data.vitaminB12Pgml ?? null,
+        data.ferritinNgml ?? null,
+        data.vo2maxMlkgmin ?? null,
+        data.notes ?? null,
+      ]
+    );
+    return res.status(201).json({ labResult: result.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthRouter.delete('/lab-results/:id', async (req, res, next) => {
+  try {
+    await query('DELETE FROM lab_results WHERE id = $1 AND user_id = $2', [req.params.id, req.user.sub]);
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+});
