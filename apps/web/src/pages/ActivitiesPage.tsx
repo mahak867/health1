@@ -17,6 +17,15 @@ interface Activity {
   kudos_count?: number;
 }
 
+/** Karvonen HR zones (5 zones) from avg HR approximation */
+function hrZoneLabel(hr: number): { zone: number; label: string; color: string } {
+  if (hr < 114) return { zone: 1, label: 'Zone 1 — Easy',      color: '#22c55e' };
+  if (hr < 133) return { zone: 2, label: 'Zone 2 — Aerobic',   color: '#3b82f6' };
+  if (hr < 152) return { zone: 3, label: 'Zone 3 — Tempo',     color: '#f59e0b' };
+  if (hr < 171) return { zone: 4, label: 'Zone 4 — Threshold', color: '#f97316' };
+  return         { zone: 5, label: 'Zone 5 — Max',             color: '#ef4444' };
+}
+
 const ACTIVITY_ICONS: Record<string, string> = {
   run: '🏃', ride: '🚴', walk: '🚶', swim: '🏊', hike: '🥾', row: '🚣', other: '⚡'
 };
@@ -231,7 +240,20 @@ export default function ActivitiesPage() {
                   {a.duration_seconds != null && <Stat icon="⏱️" v={fmt(a.duration_seconds)} />}
                   {p && <Stat icon="⚡" v={p} />}
                   {a.calories_burned != null && <Stat icon="🔥" v={`${a.calories_burned} kcal`} />}
-                  {a.avg_heart_rate  != null && <Stat icon="💓" v={`${a.avg_heart_rate} bpm`} />}
+                  {a.avg_heart_rate  != null && (
+                    <>
+                      <Stat icon="💓" v={`${a.avg_heart_rate} bpm`} />
+                      {(() => {
+                        const z = hrZoneLabel(a.avg_heart_rate);
+                        return (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                            style={{ background: `${z.color}20`, color: z.color }}>
+                            {z.label}
+                          </span>
+                        );
+                      })()}
+                    </>
+                  )}
                   {a.elevation_m     != null && a.elevation_m > 0 && <Stat icon="⛰️" v={`${a.elevation_m}m`} />}
                 </div>
                 {a.notes && <p className="text-slate-500 text-xs mt-2 truncate">{a.notes}</p>}

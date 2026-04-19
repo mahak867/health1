@@ -33,8 +33,14 @@ export default function WorkoutsPage() {
   const [wForm, setWForm] = useState(emptyW);
   const [eForm, setEForm] = useState(emptyE);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'workouts' | 'templates' | 'prs'>('workouts');
+  const [activeTab, setActiveTab] = useState<'workouts' | 'templates' | 'prs' | 'analytics'>('workouts');
   const [newPRFlash, setNewPRFlash] = useState<string | null>(null);
+  // Analytics — volume per muscle group
+  const [volumeData, setVolumeData] = useState<any[]>([]);
+  // Session timer — tracks total elapsed time since first exercise logged
+  const [sessionStart, setSessionStart] = useState<Date | null>(null);
+  const [sessionElapsed, setSessionElapsed] = useState(0);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Rest timer
   const [restTimer, setRestTimer] = useState<number | null>(null);
   const restIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -53,7 +59,20 @@ export default function WorkoutsPage() {
   function loadTemplates() {
     api.get<{ templates: Template[] }>('/fitness/templates').then((r) => setTemplates(r.templates)).catch(() => {});
   }
-  useEffect(() => { loadWorkouts(); loadPRs(); loadTemplates(); }, []);
+  function loadVolume() {
+    api.get<{ volume: any[] }>('/fitness/workouts/volume?weeks=8').then((r) => setVolumeData(r.volume)).catch(() => {});
+  }
+  useEffect(() => { loadWorkouts(); loadPRs(); loadTemplates(); loadVolume(); }, []);
+
+  // Session timer
+  useEffect(() => {
+    if (sessionStart) {
+      sessionTimerRef.current = setInterval(() => {
+        setSessionElapsed(Math.floor((Date.now() - sessionStart.getTime()) / 1000));
+      }, 1000);
+    }
+    return () => { if (sessionTimerRef.current) clearInterval(sessionTimerRef.current); };
+  }, [sessionStart]);
 
   // Fetch exercise history when exercise name changes (for progressive overload hint)
   const fetchExHistory = useCallback((name: string) => {
@@ -145,16 +164,34 @@ export default function WorkoutsPage() {
       // Start rest timer
       const restSecs = Number(eForm.restSeconds);
       if (restSecs > 0) startRestTimer(restSecs);
-      setEForm(emptyE); loadExercises(selected.id);
+      // Start session timer on first exercise
+      if (!sessionStart) setSessionStart(new Date());
+      setEForm(emptyE); loadExercises(selected.id); loadVolume();
     } catch (err: any) { setError(err.message); }
   }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black text-white">Workouts 🏋️</h1>
-        <p className="text-slate-500 text-sm mt-1">Plan, log and track your training</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black text-white">Workouts 🏋️</h1>
+          <p className="text-slate-500 text-sm mt-1">Plan, log and track your training</p>
+        </div>
+        {/* Session timer */}
+        {sessionStart && (
+          <div className="glass rounded-2xl px-4 py-3 flex items-center gap-3 border border-emerald-500/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest">Session</p>
+              <p className="text-lg font-black text-white tabular-nums">
+                {Math.floor(sessionElapsed / 3600) > 0 && `${Math.floor(sessionElapsed / 3600)}:`}
+                {String(Math.floor((sessionElapsed % 3600) / 60)).padStart(2, '0')}:{String(sessionElapsed % 60).padStart(2, '0')}
+              </p>
+            </div>
+            <button onClick={() => { setSessionStart(null); setSessionElapsed(0); }} className="text-xs text-slate-600 hover:text-white ml-2">✕</button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -167,11 +204,12 @@ export default function WorkoutsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {([
           ['workouts', '🏋️ Workouts'],
           ['templates', `📋 Templates (${templates.length})`],
           ['prs', `🏆 PRs (${prs.length})`],
+          ['analytics', '📊 Analytics'],
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setActiveTab(t as any)}
             className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${
@@ -459,6 +497,97 @@ export default function WorkoutsPage() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ─── Analytics Tab ─── */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6">
+          <p className="text-xs text-slate-500">Volume per muscle group across last 8 weeks (total sets logged)</p>
+          {volumeData.length === 0 ? (
+            <div className="text-center py-16 text-slate-500">
+              <p className="text-4xl mb-3">📊</p>
+              <p className="font-semibold">No volume data yet</p>
+              <p className="text-sm mt-1">Log workouts with muscle groups to see analytics</p>
+            </div>
+          ) : (() => {
+            // Aggregate total sets per muscle group
+            const totals: Record<string, { sets: number; volume: number }> = {};
+            volumeData.forEach((row) => {
+              const mg = row.muscle_group || 'other';
+              if (!totals[mg]) totals[mg] = { sets: 0, volume: 0 };
+              totals[mg].sets   += row.total_sets ?? 0;
+              totals[mg].volume += Number(row.total_volume_kg ?? 0);
+            });
+            const sorted = Object.entries(totals).sort((a, b) => b[1].sets - a[1].sets);
+            const maxSets = sorted[0]?.[1].sets ?? 1;
+            const MUSCLE_COLORS: Record<string, string> = {
+              chest: '#e11d48', back: '#2563eb', legs: '#16a34a', shoulders: '#d97706',
+              biceps: '#7c3aed', triceps: '#0891b2', core: '#be185d', cardio: '#f97316',
+              glutes: '#65a30d', hamstrings: '#15803d', quadriceps: '#1d4ed8', calves: '#4f46e5',
+            };
+            return (
+              <div className="glass rounded-2xl p-5 space-y-3">
+                <h2 className="text-sm font-bold text-white mb-4">Muscle Group Volume (last 8 weeks)</h2>
+                {sorted.map(([mg, data]) => {
+                  const color = MUSCLE_COLORS[mg.toLowerCase()] ?? '#6b7280';
+                  const pct = (data.sets / maxSets) * 100;
+                  return (
+                    <div key={mg}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-slate-300 font-medium capitalize">{mg}</span>
+                        <span className="text-slate-500">{data.sets} sets · {data.volume.toFixed(0)} kg total</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-white/5 overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Weekly breakdown table */}
+                <div className="mt-6">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Weekly Breakdown</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-slate-500 border-b border-white/10">
+                          <th className="text-left py-2">Muscle</th>
+                          {[...new Set(volumeData.map((r) => r.week_start))].sort().slice(-6).map((w) => (
+                            <th key={w} className="py-2 text-center font-normal">
+                              {new Date(w).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {sorted.slice(0, 8).map(([mg]) => {
+                          const weeks = [...new Set(volumeData.map((r) => r.week_start))].sort().slice(-6);
+                          return (
+                            <tr key={mg}>
+                              <td className="py-2 text-slate-300 capitalize font-medium">{mg}</td>
+                              {weeks.map((w) => {
+                                const row = volumeData.find((r) => r.muscle_group === mg && r.week_start === w);
+                                const sets = row?.total_sets ?? 0;
+                                return (
+                                  <td key={w} className="py-2 text-center">
+                                    <span className={`font-bold ${sets >= 15 ? 'text-emerald-400' : sets >= 8 ? 'text-blue-400' : sets > 0 ? 'text-slate-400' : 'text-slate-700'}`}>
+                                      {sets > 0 ? sets : '—'}
+                                    </span>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[10px] text-slate-600 mt-2">🟢 ≥15 sets · 🔵 ≥8 sets · Gray &lt;8 sets per week</p>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

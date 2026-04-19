@@ -336,3 +336,55 @@ healthModuleRouter.post('/weight', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Lifetime Personal Stats ──────────────────────────────────────────────────
+healthModuleRouter.get('/stats', async (req, res, next) => {
+  try {
+    const uid = req.user.sub;
+    const [workoutsRes, activitiesRes, mealsRes, xpRes, weightRes, streakRes] = await Promise.allSettled([
+      query(`SELECT COUNT(*)::int AS total,
+                    COALESCE(SUM(calories_burned),0)::int AS total_calories,
+                    COALESCE(SUM(EXTRACT(EPOCH FROM (completed_at - started_at))/3600),0)::numeric AS total_hours
+             FROM workouts WHERE user_id = $1`, [uid]),
+      query(`SELECT COUNT(*)::int AS total,
+                    COALESCE(SUM(distance_m),0)::numeric AS total_distance_m,
+                    COALESCE(SUM(calories_burned),0)::int AS total_calories,
+                    COALESCE(SUM(duration_seconds),0)::int AS total_seconds
+             FROM activities WHERE user_id = $1`, [uid]),
+      query(`SELECT COUNT(*)::int AS total,
+                    COALESCE(SUM(calories),0)::int AS total_calories
+             FROM nutrition_logs WHERE user_id = $1`, [uid]),
+      query(`SELECT COALESCE(SUM(xp),0)::int AS total FROM user_xp WHERE user_id = $1`, [uid]),
+      query(`SELECT weight_kg FROM body_weight_logs WHERE user_id = $1 ORDER BY logged_at DESC LIMIT 1`, [uid]),
+      query(`SELECT COALESCE(MAX(streak),0)::int AS longest FROM (
+               SELECT COUNT(*)::int AS streak
+               FROM (
+                 SELECT COALESCE(DATE(completed_at), DATE(started_at)) AS day
+                 FROM workouts WHERE user_id = $1
+                 GROUP BY 1
+               ) days
+             ) s`, [uid]),
+    ]);
+
+    return res.json({
+      workouts: workoutsRes.status === 'fulfilled' ? workoutsRes.value.rows[0] : {},
+      activities: activitiesRes.status === 'fulfilled' ? activitiesRes.value.rows[0] : {},
+      meals: mealsRes.status === 'fulfilled' ? mealsRes.value.rows[0] : {},
+      totalXP: xpRes.status === 'fulfilled' ? xpRes.value.rows[0]?.total ?? 0 : 0,
+      latestWeight: weightRes.status === 'fulfilled' ? (weightRes.value.rows[0]?.weight_kg ?? null) : null,
+      longestStreak: streakRes.status === 'fulfilled' ? streakRes.value.rows[0]?.longest ?? 0 : 0,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── DELETE medication ────────────────────────────────────────────────────────
+healthModuleRouter.delete('/medications/:id', async (req, res, next) => {
+  try {
+    await query('DELETE FROM medications WHERE id = $1 AND user_id = $2', [req.params.id, req.user.sub]);
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+});

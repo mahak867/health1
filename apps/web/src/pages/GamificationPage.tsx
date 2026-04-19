@@ -38,11 +38,15 @@ export default function GamificationPage() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [tab, setTab] = useState<'challenges' | 'badges'>('challenges');
+  const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
     api.get<XPData>('/gamification/xp').then(setXp).catch(() => {});
     api.get<{ badges: Badge[] }>('/gamification/badges').then((r) => setBadges(r.badges)).catch(() => {});
     api.get<{ challenges: Challenge[] }>('/gamification/challenges').then((r) => setChallenges(r.challenges)).catch(() => {});
+    api.get<any>('/gamification/weekly-summary').then(setWeeklySummary).catch(() => {});
+    api.get<any>('/health/stats').then(setStats).catch(() => {});
   }, []);
 
   const earnedBadges = badges.filter((b) => b.earned);
@@ -161,6 +165,48 @@ export default function GamificationPage() {
                 <BadgeCard key={b.key} badge={b} />
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Weekly Summary Card ─── */}
+      {weeklySummary && (
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">📅 This Week</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { icon: '🏋️', label: 'Workouts', value: weeklySummary.workouts ?? 0, color: 'text-violet-400' },
+              { icon: '🔥', label: 'Cals Burned', value: `${(weeklySummary.calories_burned ?? 0).toLocaleString()}`, color: 'text-orange-400' },
+              { icon: '📍', label: 'Distance', value: weeklySummary.distance_km ? `${Number(weeklySummary.distance_km).toFixed(1)} km` : '0 km', color: 'text-cyan-400' },
+              { icon: '⭐', label: 'XP Earned', value: (weeklySummary.xp_earned ?? 0).toLocaleString(), color: 'text-yellow-400' },
+            ].map(({ icon, label, value, color }) => (
+              <div key={label} className="text-center glass rounded-xl p-3">
+                <p className="text-2xl mb-1">{icon}</p>
+                <p className={`text-xl font-black ${color}`}>{value}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Lifetime Stats ─── */}
+      {stats && (
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">🏆 All-Time Stats</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { icon: '🏋️', label: 'Total Workouts', value: stats.workouts?.total ?? 0, color: 'text-violet-400' },
+              { icon: '🏃', label: 'Total Activities', value: stats.activities?.total ?? 0, color: 'text-orange-400' },
+              { icon: '🥗', label: 'Meals Logged', value: stats.meals?.total ?? 0, color: 'text-emerald-400' },
+              { icon: '📍', label: 'Total km Run', value: stats.activities?.total_distance_m >= 1000 ? `${(stats.activities.total_distance_m / 1000).toFixed(0)} km` : '0 km', color: 'text-cyan-400' },
+            ].map(({ icon, label, value, color }) => (
+              <div key={label} className="text-center glass rounded-xl p-3">
+                <p className="text-2xl mb-1">{icon}</p>
+                <p className={`text-xl font-black ${color}`}>{value}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}

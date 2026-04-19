@@ -46,6 +46,8 @@ export default function MealsPage() {
   const [ingForm, setIngForm] = useState({ name: '', quantityG: '', calories: '', proteinG: '', carbsG: '', fatG: '' });
   const [waterTotal, setWaterTotal] = useState(0);
   const [waterLogs, setWaterLogs] = useState<any[]>([]);
+  // Dynamic macro targets from training mode
+  const [modeTargets, setModeTargets] = useState<{ targetCalories: number; proteinGrams: number } | null>(null);
 
   const WATER_GOAL = 2500;
 
@@ -61,7 +63,12 @@ export default function MealsPage() {
       setWaterLogs(r.logs);
     }).catch(() => {});
   }
-  useEffect(() => { load(); loadRecipes(); loadWater(); }, []);
+  useEffect(() => {
+    load(); loadRecipes(); loadWater();
+    api.get<{ mode: any }>('/modes/my').then((r) => {
+      if (r.mode?.targets) setModeTargets(r.mode.targets);
+    }).catch(() => {});
+  }, []);
 
   async function logWater(ml: number) {
     try {
@@ -163,10 +170,10 @@ export default function MealsPage() {
   const totalFat  = today.reduce((s, m) => s + (m.fat_g     ?? 0), 0);
 
   // Reasonable default targets
-  const calTarget  = 2000;
-  const proTarget  = 150;
-  const carbTarget = 250;
-  const fatTarget  = 65;
+  const calTarget  = modeTargets?.targetCalories ?? 2000;
+  const proTarget  = modeTargets?.proteinGrams ?? 150;
+  const carbTarget = calTarget > 0 ? Math.round((calTarget * 0.45) / 4) : 250;  // 45% cals from carbs
+  const fatTarget  = calTarget > 0 ? Math.round((calTarget * 0.25) / 9) : 65;   // 25% cals from fat
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
@@ -190,7 +197,18 @@ export default function MealsPage() {
 
       {/* MFP-style calorie + macro panel */}
       <div className="glass rounded-2xl p-5">
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-5">Today's Summary</p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Today's Summary</p>
+          {/* Net calories remaining pill */}
+          <div className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+            calTarget - totalCal > 0 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/15 text-rose-300 border border-rose-500/20'
+          }`}>
+            {calTarget - totalCal > 0
+              ? `${calTarget - totalCal} kcal remaining`
+              : `${totalCal - calTarget} kcal over goal`}
+          </div>
+        </div>
+        {modeTargets && <p className="text-[10px] text-slate-600 -mt-2 mb-4">Targets from your active training mode · <span className="text-violet-400">Profile → Training Mode to adjust</span></p>}
         <div className="flex flex-col sm:flex-row items-center gap-8">
           {/* Calorie ring (center piece) */}
           <div className="shrink-0">

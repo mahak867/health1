@@ -300,3 +300,28 @@ fitnessRouter.get('/exercises/:exerciseName/history', async (req, res, next) => 
     return next(error);
   }
 });
+
+// ─── Volume per muscle group (last N weeks) ───────────────────────────────────
+fitnessRouter.get('/workouts/volume', async (req, res, next) => {
+  try {
+    const weeks = Math.min(Number(req.query.weeks ?? 8), 26);
+    const result = await query(
+      `SELECT
+         LOWER(we.muscle_group) AS muscle_group,
+         DATE_TRUNC('week', COALESCE(w.completed_at, w.started_at)::timestamptz) AS week_start,
+         SUM(we.sets)::int AS total_sets,
+         SUM(we.sets * we.reps)::int AS total_reps,
+         SUM(we.sets * we.reps * we.weight_kg)::numeric AS total_volume_kg
+       FROM workout_exercises we
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE w.user_id = $1
+         AND COALESCE(w.completed_at, w.started_at) >= NOW() - ($2 || ' weeks')::interval
+       GROUP BY muscle_group, week_start
+       ORDER BY week_start, total_sets DESC`,
+      [req.user.sub, weeks]
+    );
+    return res.json({ volume: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});

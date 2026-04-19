@@ -35,6 +35,11 @@ export default function VitalsPage() {
   const [weightLogs, setWeightLogs] = useState<any[]>([]);
   const [weightForm, setWeightForm] = useState({ weightKg: '', bodyFatPct: '' });
   const [savingWeight, setSavingWeight] = useState(false);
+  const [activeTab, setActiveTab] = useState<'vitals' | 'medications'>('vitals');
+  // Medications
+  const [medications, setMedications] = useState<any[]>([]);
+  const [medForm, setMedForm] = useState({ medicationName: '', dosage: '', frequency: '', instructions: '' });
+  const [savingMed, setSavingMed] = useState(false);
 
   function load() {
     api.get<{ vitals: Vital[] }>('/health/vitals').then((r) => setVitals(r.vitals));
@@ -42,7 +47,10 @@ export default function VitalsPage() {
   function loadWeight() {
     api.get<{ logs: any[] }>('/health/weight').then((r) => setWeightLogs(r.logs)).catch(() => {});
   }
-  useEffect(() => { load(); loadWeight(); }, []);
+  function loadMedications() {
+    api.get<{ medications: any[] }>('/health/medications').then((r) => setMedications(r.medications)).catch(() => {});
+  }
+  useEffect(() => { load(); loadWeight(); loadMedications(); }, []);
 
   async function handleWeightLog(e: React.FormEvent) {
     e.preventDefault();
@@ -78,7 +86,44 @@ export default function VitalsPage() {
     finally { setSubmitting(false); }
   }
 
+  async function saveMedication(e: React.FormEvent) {
+    e.preventDefault();
+    if (!medForm.medicationName.trim()) return;
+    setSavingMed(true);
+    try {
+      await api.post('/health/medications', {
+        medicationName: medForm.medicationName,
+        ...(medForm.dosage ? { dosage: medForm.dosage } : {}),
+        ...(medForm.frequency ? { frequency: medForm.frequency } : {}),
+        ...(medForm.instructions ? { instructions: medForm.instructions } : {}),
+        startedAt: new Date().toISOString(),
+      });
+      setMedForm({ medicationName: '', dosage: '', frequency: '', instructions: '' });
+      loadMedications();
+    } catch (_) {}
+    setSavingMed(false);
+  }
+
+  async function deleteMedication(id: string) {
+    try {
+      await api.delete(`/health/medications/${id}`);
+      loadMedications();
+    } catch (_) {}
+  }
+
   const latest = vitals[0];
+
+  // Sleep quality score: 0-100 based on hours + stress (inverted)
+  const sleepScore = latest
+    ? Math.min(100, Math.max(0, Math.round(
+        ((latest.sleep_hours ?? 6) / 9) * 60 +        // up to 60pts for 9h sleep
+        ((10 - (latest.stress_level ?? 5)) / 10) * 40  // up to 40pts for low stress
+      )))
+    : null;
+  const sleepScoreColor = !sleepScore ? '#6b7280'
+    : sleepScore >= 80 ? '#22c55e'
+    : sleepScore >= 60 ? '#f59e0b'
+    : '#ef4444';
 
   // Build sparkline data (oldest → newest)
   const hrData    = [...vitals].reverse().map((v) => v.heart_rate).filter((n): n is number => n != null);
@@ -94,10 +139,35 @@ export default function VitalsPage() {
         <p className="text-slate-500 text-sm mt-1">Track your body's key health metrics and trends</p>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {([['vitals', '📊 Vitals & Trends'], ['medications', '💊 Medications']] as const).map(([t, label]) => (
+          <button key={t} onClick={() => setActiveTab(t)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === t ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Live metric rings (latest reading) */}
+      {activeTab === 'vitals' && (<>
       {latest && (
         <div className="glass rounded-2xl p-5">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-5">Latest Reading — {new Date(latest.recorded_at).toLocaleString()}</p>
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Latest Reading — {new Date(latest.recorded_at).toLocaleString()}</p>
+            {/* Sleep quality score chip */}
+            {sleepScore !== null && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass border" style={{ borderColor: `${sleepScoreColor}40` }}>
+                <span className="text-sm">😴</span>
+                <span className="text-xs font-bold" style={{ color: sleepScoreColor }}>
+                  Sleep Score: {sleepScore}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {sleepScore >= 80 ? 'Excellent' : sleepScore >= 60 ? 'Fair' : 'Poor'}
+                </span>
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap justify-around gap-6">
             <Ring value={latest.heart_rate ? Math.min((latest.heart_rate / 200) * 100, 100) : 0}
               color="#e11d48" trackColor="#2a0012" size={88} strokeWidth={8}
@@ -273,6 +343,71 @@ export default function VitalsPage() {
           )}
         </Card>
       </div>
+      </>)}
+
+      {/* ─── Medications Tab ─── */}
+      {activeTab === 'medications' && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Log new medication */}
+          <Card title="💊 Add Medication" accent="rose">
+            <form onSubmit={saveMedication} className="space-y-3">
+              <input required value={medForm.medicationName}
+                onChange={(e) => setMedForm((f) => ({ ...f, medicationName: e.target.value }))}
+                placeholder="Medication name *"
+                className="w-full rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500/40" />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={medForm.dosage}
+                  onChange={(e) => setMedForm((f) => ({ ...f, dosage: e.target.value }))}
+                  placeholder="Dosage (e.g. 10mg)"
+                  className="rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500/30" />
+                <input value={medForm.frequency}
+                  onChange={(e) => setMedForm((f) => ({ ...f, frequency: e.target.value }))}
+                  placeholder="Frequency (e.g. twice daily)"
+                  className="rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500/30" />
+              </div>
+              <textarea value={medForm.instructions} rows={2}
+                onChange={(e) => setMedForm((f) => ({ ...f, instructions: e.target.value }))}
+                placeholder="Instructions or notes (optional)"
+                className="w-full rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500/30 resize-none" />
+              <button type="submit" disabled={savingMed}
+                className="w-full py-2.5 rounded-xl bg-rose-500/80 hover:bg-rose-500 text-white text-sm font-bold disabled:opacity-50 transition-colors">
+                {savingMed ? 'Saving…' : '+ Add Medication'}
+              </button>
+            </form>
+          </Card>
+
+          {/* Medications list */}
+          <Card title="Active Medications" accent="blue">
+            {medications.length === 0 ? (
+              <div className="py-8 text-center text-slate-500">
+                <p className="text-3xl mb-2">💊</p>
+                <p className="text-sm">No medications logged yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {medications.map((med) => (
+                  <div key={med.id} className="glass rounded-xl p-3 flex items-start gap-3">
+                    <span className="text-2xl mt-0.5">💊</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white">{med.medication_name}</p>
+                      {med.dosage && <p className="text-xs text-slate-400 mt-0.5">Dose: {med.dosage}</p>}
+                      {med.frequency && <p className="text-xs text-slate-400">Frequency: {med.frequency}</p>}
+                      {med.instructions && <p className="text-xs text-slate-500 mt-1 italic">{med.instructions}</p>}
+                      {med.started_at && (
+                        <p className="text-[10px] text-slate-600 mt-1">Started {new Date(med.started_at).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    <button onClick={() => deleteMedication(med.id)}
+                      className="text-xs text-slate-600 hover:text-red-400 transition-colors px-2 py-1 rounded shrink-0">
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
