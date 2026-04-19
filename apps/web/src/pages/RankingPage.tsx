@@ -371,15 +371,15 @@ export default function RankingPage() {
             </div>
 
             {/* Horizontal tier strip */}
-            <div className="px-4 pb-4">
-              <div className="flex items-end justify-between gap-1">
+            <div className="px-2 pb-4">
+              <div className="flex items-end justify-around">
                 {TIER_ORDER.map(tier => {
                   const isActive  = previewRank.current.name === tier;
                   const isPassed  = TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf(previewRank.current.name);
                   const tStyle    = TIER_STYLES[tier];
                   return (
                     <div key={tier} className="flex flex-col items-center gap-0.5" title={tier}>
-                      <div className={`transition-all ${isActive ? 'scale-125 drop-shadow-lg' : isPassed ? 'opacity-60' : 'opacity-25'}`}>
+                      <div className={`transition-all ${isActive ? 'scale-110 drop-shadow-lg' : isPassed ? 'opacity-60' : 'opacity-25'}`}>
                         {TIER_ICONS[tier]}
                       </div>
                       <span className={`text-[8px] font-bold capitalize ${isActive ? 'text-white' : 'text-slate-600'}`}
