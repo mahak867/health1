@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppWidget metadata for the HealthSphere home-screen widget.
+
+  minWidth / minHeight  → 2×2 cells (each cell ≈ 74dp with 2dp margins)
+  updatePeriodMillis    → 0 means the widget updates only when Flutter calls
+                          HomeWidget.updateWidget(), which is the recommended
+                          approach for apps that manage their own refresh cycle.
+  widgetCategory        → home_screen only (not keyguard / lock screen)
+  description           → shown in the widget picker
+-->
+<appwidget-provider
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:minWidth="180dp"
+  android:minHeight="180dp"
+  android:targetCellWidth="2"
+  android:targetCellHeight="2"
+  android:updatePeriodMillis="0"
+  android:initialLayout="@layout/healthsphere_widget"
+  android:widgetCategory="home_screen"
+  android:description="@string/healthsphere_widget_description"
+  android:previewLayout="@layout/healthsphere_widget"
+  android:resizeMode="horizontal|vertical" />

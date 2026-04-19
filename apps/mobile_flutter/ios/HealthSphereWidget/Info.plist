@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Info.plist for the HealthSphereWidget extension target.
+
+  In Xcode:
+    1. File → New → Target → Widget Extension
+    2. Product Name: HealthSphereWidget
+    3. Replace the generated Info.plist with this file (or merge keys).
+    4. In the extension target → Signing & Capabilities:
+         + Add "App Groups" → group.com.healthsphere.mobile
+    5. In the Runner target → Signing & Capabilities:
+         + Add "App Groups" → group.com.healthsphere.mobile
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>$(DEVELOPMENT_LANGUAGE)</string>
+
+  <key>CFBundleDisplayName</key>
+  <string>HealthSphere Widget</string>
+
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+
+  <key>CFBundleName</key>
+  <string>$(PRODUCT_NAME)</string>
+
+  <key>CFBundlePackageType</key>
+  <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+
+  <key>CFBundleShortVersionString</key>
+  <string>$(FLUTTER_BUILD_NAME)</string>
+
+  <key>CFBundleVersion</key>
+  <string>$(FLUTTER_BUILD_NUMBER)</string>
+
+  <!-- Widget extension principal class -->
+  <key>NSExtension</key>
+  <dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.widgetkit-extension</string>
+  </dict>
+</dict>
+</plist>

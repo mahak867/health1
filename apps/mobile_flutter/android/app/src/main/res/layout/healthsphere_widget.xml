@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Layout for the HealthSphere Android home-screen widget.
+  Uses a dark rounded card with a 2×3 grid of vital tiles.
+
+  IMPORTANT: RemoteViews only supports a limited subset of Views.
+  Allowed: FrameLayout, LinearLayout, RelativeLayout, GridLayout, TextView,
+           ImageView, Button, ProgressBar, Chronometer, AnalogClock.
+  Not allowed: ConstraintLayout, RecyclerView, or any custom View.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/widget_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:padding="12dp"
+  android:background="@drawable/widget_background"
+  android:gravity="center_vertical">
+
+  <!-- App name row -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginBottom="8dp">
+    <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="🌿 HealthSphere"
+      android:textColor="#FFFFFF"
+      android:textSize="13sp"
+      android:textStyle="bold" />
+    <TextView
+      android:id="@+id/widget_last_updated"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="Updated --:--"
+      android:textColor="#78909C"
+      android:textSize="10sp" />
+  </LinearLayout>
+
+  <!-- Row 1: Heart Rate | Cal Burned -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:layout_marginBottom="6dp">
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:background="@drawable/widget_tile_background"
+      android:layout_marginEnd="3dp"
+      android:padding="6dp">
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💓"
+        android:textSize="18sp" />
+      <TextView
+        android:id="@+id/widget_heart_rate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="— bpm"
+        android:textColor="#F48FB1"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Heart Rate"
+        android:textColor="#78909C"
+        android:textSize="9sp" />
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:background="@drawable/widget_tile_background"
+      android:layout_marginStart="3dp"
+      android:padding="6dp">
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔥"
+        android:textSize="18sp" />
+      <TextView
+        android:id="@+id/widget_cal_burned"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="— kcal"
+        android:textColor="#FFAB40"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cal Burned"
+        android:textColor="#78909C"
+        android:textSize="9sp" />
+    </LinearLayout>
+  </LinearLayout>
+
+  <!-- Row 2: Cal Eaten | Water -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:layout_marginBottom="6dp">
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:background="@drawable/widget_tile_background"
+      android:layout_marginEnd="3dp"
+      android:padding="6dp">
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🥗"
+        android:textSize="18sp" />
+      <TextView
+        android:id="@+id/widget_cal_eaten"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="— kcal"
+        android:textColor="#A5D6A7"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cal Eaten"
+        android:textColor="#78909C"
+        android:textSize="9sp" />
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:background="@drawable/widget_tile_background"
+      android:layout_marginStart="3dp"
+      android:padding="6dp">
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="💧"
+        android:textSize="18sp" />
+      <TextView
+        android:id="@+id/widget_water"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="— L"
+        android:textColor="#80DEEA"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Water"
+        android:textColor="#78909C"
+        android:textSize="9sp" />
+    </LinearLayout>
+  </LinearLayout>
+
+  <!-- Row 3: Steps | Sleep -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal">
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:background="@drawable/widget_tile_background"
+      android:layout_marginEnd="3dp"
+      android:padding="6dp">
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🏃"
+        android:textSize="18sp" />
+      <TextView
+        android:id="@+id/widget_steps"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textColor="#CE93D8"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Steps"
+        android:textColor="#78909C"
+        android:textSize="9sp" />
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="match_parent"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="center"
+      android:background="@drawable/widget_tile_background"
+      android:layout_marginStart="3dp"
+      android:padding="6dp">
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🌙"
+        android:textSize="18sp" />
+      <TextView
+        android:id="@+id/widget_sleep"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="— h"
+        android:textColor="#B39DDB"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sleep"
+        android:textColor="#78909C"
+        android:textSize="9sp" />
+    </LinearLayout>
+  </LinearLayout>
+
+</LinearLayout>

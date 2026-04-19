@@ -14,6 +14,23 @@ const MODE_META: Record<string, { icon: string; desc: string; color: string }> =
   recomposition: { icon: '🔄', desc: 'Lose fat while gaining muscle',  color: 'gradient-blue'   },
 };
 
+const ACTIVITY_LEVELS = [
+  { key: 'sedentary',   label: 'Sedentary',      desc: 'Little/no exercise', multiplier: 1.2 },
+  { key: 'light',       label: 'Lightly Active',  desc: '1-3 days/week',     multiplier: 1.375 },
+  { key: 'moderate',    label: 'Moderately Active', desc: '3-5 days/week',   multiplier: 1.55 },
+  { key: 'very',        label: 'Very Active',     desc: '6-7 days/week',     multiplier: 1.725 },
+  { key: 'extra',       label: 'Athlete',         desc: 'Twice/day training', multiplier: 1.9 },
+];
+
+/** Mifflin-St Jeor BMR then multiply by activity factor */
+function calcTDEE(age: number, heightCm: number, weightKg: number, sex: 'male'|'female', activityKey: string): number {
+  const bmr = sex === 'male'
+    ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
+    : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+  const mult = ACTIVITY_LEVELS.find((l) => l.key === activityKey)?.multiplier ?? 1.55;
+  return Math.round(bmr * mult);
+}
+
 export default function ProfilePage({ user }: Props) {
   const [form, setForm] = useState(emptyProfile);
   const [modeForm, setModeForm] = useState({ mode: 'maintenance', tdee: '2200', weightKg: '70' });
@@ -21,6 +38,46 @@ export default function ProfilePage({ user }: Props) {
   const [saved, setSaved] = useState(false);
   const [modeSaved, setModeSaved] = useState(false);
   const [error, setError] = useState('');
+  const [badges, setBadges] = useState<any[]>([]);
+  const [xp, setXp] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
+  // TDEE calculator state
+  const [tdeeCalc, setTdeeCalc] = useState({ sex: 'male' as 'male'|'female', activityLevel: 'moderate' });
+  const [tdeeResult, setTdeeResult] = useState<number | null>(null);
+  // Emergency contacts state
+  const [emergencyContacts, setEmergencyContacts] = useState<Array<{ name: string; phone: string; relation: string }>>([]);
+  const [newContact, setNewContact] = useState({ name: '', phone: '', relation: '' });
+  // Body measurements
+  const [bodyMeasurements, setBodyMeasurements] = useState<any[]>([]);
+  const [measForm, setMeasForm] = useState({ waist: '', hips: '', chest: '', neck: '', leftArm: '', rightArm: '', leftThigh: '', shoulders: '' });
+  const [savingMeas, setSavingMeas] = useState(false);
+
+  function loadBodyMeasurements() {
+    api.get<{ measurements: any[] }>('/health/body-measurements').then((r) => setBodyMeasurements(r.measurements)).catch(() => {});
+  }
+
+  async function saveBodyMeasurement(e: React.FormEvent) {
+    e.preventDefault();
+    const hasValue = Object.values(measForm).some((v) => v !== '');
+    if (!hasValue) return;
+    setSavingMeas(true);
+    try {
+      const body: any = {};
+      if (measForm.waist)      body.waistCm     = Number(measForm.waist);
+      if (measForm.hips)       body.hipsCm      = Number(measForm.hips);
+      if (measForm.chest)      body.chestCm     = Number(measForm.chest);
+      if (measForm.neck)       body.neckCm      = Number(measForm.neck);
+      if (measForm.leftArm)    body.leftArmCm   = Number(measForm.leftArm);
+      if (measForm.rightArm)   body.rightArmCm  = Number(measForm.rightArm);
+      if (measForm.leftThigh)  body.leftThighCm = Number(measForm.leftThigh);
+      if (measForm.shoulders)  body.shouldersCm = Number(measForm.shoulders);
+      await api.post('/health/body-measurements', body);
+      setMeasForm({ waist: '', hips: '', chest: '', neck: '', leftArm: '', rightArm: '', leftThigh: '', shoulders: '' });
+      loadBodyMeasurements();
+    } catch (_) {}
+    setSavingMeas(false);
+  }
+
 
   useEffect(() => {
     api.get<{ profile: any }>('/health/profile').then((r) => {
@@ -31,9 +88,15 @@ export default function ProfilePage({ user }: Props) {
           medicalConditions: (r.profile.medical_conditions ?? []).join(', '),
           allergies: (r.profile.allergies ?? []).join(', ')
         });
+        if (r.profile.weight_kg) setModeForm((f) => ({ ...f, weightKg: r.profile.weight_kg }));
+        if (r.profile.emergency_contacts) setEmergencyContacts(r.profile.emergency_contacts);
       }
     });
     api.get<{ mode: any }>('/modes/my').then((r) => setCurrentMode(r.mode));
+    api.get<{ badges: any[] }>('/gamification/badges').then((r) => setBadges(r.badges.filter((b: any) => b.earned))).catch(() => {});
+    api.get<any>('/gamification/xp').then(setXp).catch(() => {});
+    api.get<any>('/health/stats').then(setStats).catch(() => {});
+    loadBodyMeasurements();
   }, []);
 
   async function saveProfile(e: React.FormEvent) {
@@ -46,6 +109,7 @@ export default function ProfilePage({ user }: Props) {
       if (form.bloodGroup)  body.bloodGroup  = form.bloodGroup;
       body.medicalConditions = form.medicalConditions.split(',').map((s) => s.trim()).filter(Boolean);
       body.allergies         = form.allergies.split(',').map((s) => s.trim()).filter(Boolean);
+      body.emergencyContacts = emergencyContacts;
       await api.put('/health/profile', body);
       setSaved(true); setTimeout(() => setSaved(false), 2000);
     } catch (err: any) { setError(err.message); }
@@ -55,6 +119,16 @@ export default function ProfilePage({ user }: Props) {
     e.preventDefault();
     const res = await api.put<{ mode: any }>('/modes/my', { mode: modeForm.mode, tdee: Number(modeForm.tdee), weightKg: Number(modeForm.weightKg) });
     setCurrentMode(res.mode); setModeSaved(true); setTimeout(() => setModeSaved(false), 2000);
+  }
+
+  function runTDEECalc() {
+    const age = Number(form.age);
+    const heightCm = Number(form.heightCm);
+    const weightKg = Number(form.weightKg);
+    if (!age || !heightCm || !weightKg) return;
+    const tdee = calcTDEE(age, heightCm, weightKg, tdeeCalc.sex, tdeeCalc.activityLevel);
+    setTdeeResult(tdee);
+    setModeForm((f) => ({ ...f, tdee: String(tdee), weightKg: String(weightKg) }));
   }
 
   const meta = MODE_META[modeForm.mode] ?? MODE_META['maintenance'];
@@ -187,6 +261,285 @@ export default function ProfilePage({ user }: Props) {
           </Card>
         </div>
       </div>
+
+      {/* ─── TDEE Auto-Calculator ─── */}
+      <div className="glass rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🔢 TDEE Auto-Calculator</p>
+            <p className="text-xs text-slate-600 mt-0.5">Mifflin-St Jeor BMR × activity multiplier → auto-fills training mode</p>
+          </div>
+          {tdeeResult && <span className="text-2xl font-black text-orange-400">{tdeeResult} kcal/day</span>}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-slate-500 mb-2">Sex</p>
+            <div className="flex gap-2">
+              {(['male','female'] as const).map((s) => (
+                <button key={s} type="button"
+                  onClick={() => setTdeeCalc((c) => ({ ...c, sex: s }))}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-colors capitalize ${tdeeCalc.sex === s ? 'bg-violet-500/30 text-violet-200 border border-violet-500/40' : 'glass text-slate-400 hover:text-white'}`}>
+                  {s === 'male' ? '♂️ Male' : '♀️ Female'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-2">Activity Level</p>
+            <select value={tdeeCalc.activityLevel} onChange={(e) => setTdeeCalc((c) => ({ ...c, activityLevel: e.target.value }))}
+              className="w-full rounded-xl glass px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500/40">
+              {ACTIVITY_LEVELS.map((l) => (
+                <option key={l.key} value={l.key} className="bg-slate-900">{l.label} — {l.desc}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {(!form.age || !form.heightCm || !form.weightKg) && (
+          <p className="text-xs text-amber-500/80">⚠️ Fill in Age, Height, and Weight above first</p>
+        )}
+        <button onClick={runTDEECalc} disabled={!form.age || !form.heightCm || !form.weightKg}
+          className="px-6 py-2.5 rounded-xl gradient-orange text-white text-sm font-bold disabled:opacity-40 hover:scale-[1.02] transition-transform">
+          🔢 Calculate TDEE & Auto-Fill Mode
+        </button>
+        {tdeeResult && (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { mode: 'cut',         kcal: Math.round(tdeeResult * 0.8),  label: '🔥 Cut (-20%)'    },
+              { mode: 'maintenance', kcal: tdeeResult,                    label: '⚖️ Maintain'      },
+              { mode: 'bulk',        kcal: Math.round(tdeeResult * 1.1),  label: '💪 Bulk (+10%)'   },
+            ].map((opt) => (
+              <button key={opt.mode} onClick={() => setModeForm((f) => ({ ...f, mode: opt.mode, tdee: String(opt.kcal) }))}
+                className="glass rounded-xl p-3 text-center hover:bg-white/5 transition-colors border border-white/10 hover:border-white/20">
+                <p className="text-xs text-slate-400">{opt.label}</p>
+                <p className="text-lg font-black text-white mt-1">{opt.kcal}</p>
+                <p className="text-[10px] text-slate-500">kcal/day</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Emergency Contacts ─── */}
+      <Card title="🚨 Emergency Contacts" accent="rose">
+        <div className="space-y-3">
+          {emergencyContacts.map((c, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 glass rounded-xl p-3">
+              <div>
+                <p className="text-sm font-bold text-white">{c.name} <span className="text-xs text-slate-500 font-normal">({c.relation})</span></p>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">{c.phone}</p>
+              </div>
+              <button onClick={() => setEmergencyContacts((prev) => prev.filter((_, j) => j !== i))}
+                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors shrink-0">
+                Remove
+              </button>
+            </div>
+          ))}
+          <div className="grid grid-cols-3 gap-2">
+            <input className="rounded-xl glass px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none"
+              placeholder="Name" value={newContact.name} onChange={(e) => setNewContact((c) => ({ ...c, name: e.target.value }))} />
+            <input className="rounded-xl glass px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none"
+              placeholder="Phone" value={newContact.phone} onChange={(e) => setNewContact((c) => ({ ...c, phone: e.target.value }))} />
+            <input className="rounded-xl glass px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none"
+              placeholder="Relation" value={newContact.relation} onChange={(e) => setNewContact((c) => ({ ...c, relation: e.target.value }))} />
+          </div>
+          <button
+            onClick={() => {
+              if (!newContact.name.trim()) return;
+              setEmergencyContacts((prev) => [...prev, { ...newContact }]);
+              setNewContact({ name: '', phone: '', relation: '' });
+            }}
+            className="w-full py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-sm font-bold transition-colors">
+            + Add Emergency Contact
+          </button>
+          {emergencyContacts.length > 0 && (
+            <button onClick={saveProfile} className="w-full py-2 rounded-xl glass text-slate-400 hover:text-white text-xs font-semibold transition-colors">
+              💾 Save Contacts with Profile
+            </button>
+          )}
+        </div>
+      </Card>
+
+      {/* ─── BMI + Body Composition ─── */}
+      {form.heightCm && form.weightKg && (() => {
+        const h = Number(form.heightCm) / 100;
+        const w = Number(form.weightKg);
+        if (!h || !w) return null;
+        const bmi = w / (h * h);
+        const bmiCat = bmi < 18.5 ? { label: 'Underweight', color: '#3b82f6' }
+          : bmi < 25   ? { label: 'Normal',      color: '#22c55e' }
+          : bmi < 30   ? { label: 'Overweight',  color: '#f59e0b' }
+          : bmi < 35   ? { label: 'Obese (I)',   color: '#f97316' }
+          :               { label: 'Obese (II+)', color: '#ef4444' };
+        // Ideal weight range: BMI 18.5-24.9
+        const idealMin = (18.5 * h * h).toFixed(1);
+        const idealMax = (24.9 * h * h).toFixed(1);
+        // Lean mass estimate (if BF% from latest weight log)
+        // BMI gauge 0-40
+        const gaugePct = Math.min((bmi / 40) * 100, 100);
+        return (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">🧬 Body Composition</p>
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              {/* BMI dial */}
+              <div className="shrink-0 text-center">
+                <svg width={140} height={80} viewBox="0 0 140 80">
+                  {/* background arc */}
+                  <path d="M10,70 A60,60 0 0,1 130,70" fill="none" stroke="#ffffff10" strokeWidth="16" strokeLinecap="round" />
+                  {/* colored arc */}
+                  <path d="M10,70 A60,60 0 0,1 130,70" fill="none" stroke={bmiCat.color}
+                    strokeWidth="16" strokeLinecap="round"
+                    strokeDasharray={`${(gaugePct / 100) * 188} 188`} opacity="0.85" />
+                  <text x="70" y="62" textAnchor="middle" fill="white" fontSize="20" fontWeight="bold">{bmi.toFixed(1)}</text>
+                  <text x="70" y="78" textAnchor="middle" fill="#6b7280" fontSize="10">BMI</text>
+                </svg>
+                <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: `${bmiCat.color}22`, color: bmiCat.color }}>
+                  {bmiCat.label}
+                </span>
+              </div>
+              <div className="flex-1 space-y-3 w-full">
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className="glass rounded-xl p-3">
+                    <p className="text-lg font-black text-white">{w} kg</p>
+                    <p className="text-[10px] text-slate-500">Current Weight</p>
+                  </div>
+                  <div className="glass rounded-xl p-3">
+                    <p className="text-lg font-black text-emerald-400">{idealMin}–{idealMax} kg</p>
+                    <p className="text-[10px] text-slate-500">Healthy Range</p>
+                  </div>
+                </div>
+                {w < Number(idealMin) && (
+                  <p className="text-xs text-blue-300">📈 Gain {(Number(idealMin) - w).toFixed(1)} kg to reach healthy range</p>
+                )}
+                {w > Number(idealMax) && (
+                  <p className="text-xs text-amber-300">📉 Lose {(w - Number(idealMax)).toFixed(1)} kg to reach healthy range</p>
+                )}
+                {w >= Number(idealMin) && w <= Number(idealMax) && (
+                  <p className="text-xs text-emerald-300">✅ You're in the healthy weight range!</p>
+                )}
+                <p className="text-[10px] text-slate-600">BMI is a screening tool, not a diagnostic. It doesn't account for muscle mass.</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Body Measurements ─── */}
+      <div className="glass rounded-2xl p-5 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">📏 Body Measurements</p>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <form onSubmit={saveBodyMeasurement} className="space-y-3">
+            <p className="text-xs text-slate-500">Track waist, hips, chest and more to see body composition changes over time</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['Waist (cm)',    'waist'], ['Hips (cm)',     'hips'],
+                ['Chest (cm)',   'chest'], ['Neck (cm)',     'neck'],
+                ['L. Arm (cm)',  'leftArm'], ['R. Arm (cm)', 'rightArm'],
+                ['L. Thigh (cm)','leftThigh'], ['Shoulders', 'shoulders'],
+              ].map(([label, key]) => (
+                <div key={key}>
+                  <p className="text-[9px] text-slate-600 mb-0.5">{label}</p>
+                  <input type="number" step="0.1" min="0" max="300" placeholder="—"
+                    value={(measForm as any)[key]}
+                    onChange={(e) => setMeasForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="w-full rounded-xl glass px-2 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/40" />
+                </div>
+              ))}
+            </div>
+            <button type="submit" disabled={savingMeas}
+              className="w-full py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+              {savingMeas ? 'Saving…' : '📏 Log Measurements'}
+            </button>
+          </form>
+
+          {/* Latest measurements */}
+          {bodyMeasurements.length > 0 && (() => {
+            const latest = bodyMeasurements[0];
+            const prev   = bodyMeasurements[1];
+            const fields = [
+              { key: 'waist_cm', label: 'Waist' },
+              { key: 'hips_cm', label: 'Hips' },
+              { key: 'chest_cm', label: 'Chest' },
+              { key: 'neck_cm', label: 'Neck' },
+              { key: 'left_arm_cm', label: 'L. Arm' },
+              { key: 'right_arm_cm', label: 'R. Arm' },
+              { key: 'left_thigh_cm', label: 'L. Thigh' },
+              { key: 'shoulders_cm', label: 'Shoulders' },
+            ].filter((f) => latest[f.key] != null);
+            if (fields.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[10px] text-slate-500 mb-2 uppercase tracking-widest">Latest ({new Date(latest.measured_at).toLocaleDateString()})</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {fields.map(({ key, label }) => {
+                    const val  = Number(latest[key]);
+                    const pVal = prev ? Number(prev[key]) : null;
+                    const diff = pVal ? val - pVal : null;
+                    return (
+                      <div key={key} className="glass rounded-xl p-2 text-center">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-sm font-black text-white">{val} cm</p>
+                        {diff !== null && Math.abs(diff) > 0.1 && (
+                          <p className={`text-[9px] ${diff > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(1)} cm
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+          {bodyMeasurements.length === 0 && (
+            <div className="flex items-center justify-center text-xs text-slate-600 text-center">
+              <p>Log measurements to track<br />your body composition changes</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── Lifetime Personal Stats ─── */}
+      {stats && (
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">📊 My Lifetime Stats</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { icon: '🏋️', label: 'Total Workouts', value: stats.workouts?.total ?? 0, color: 'text-violet-400' },
+              { icon: '🏃', label: 'Total Activities', value: stats.activities?.total ?? 0, color: 'text-orange-400' },
+              { icon: '🥗', label: 'Meals Logged', value: stats.meals?.total ?? 0, color: 'text-emerald-400' },
+              { icon: '⭐', label: 'Total XP', value: (stats.totalXP ?? 0).toLocaleString(), color: 'text-yellow-400' },
+              { icon: '📍', label: 'Total Distance', value: stats.activities?.total_distance_m >= 1000 ? `${(stats.activities.total_distance_m / 1000).toFixed(0)} km` : `${(stats.activities?.total_distance_m ?? 0)} m`, color: 'text-cyan-400' },
+              { icon: '🔥', label: 'Calories Burned', value: `${((stats.workouts?.total_calories ?? 0) + (stats.activities?.total_calories ?? 0)).toLocaleString()} kcal`, color: 'text-rose-400' },
+              { icon: '⏱️', label: 'Workout Hours', value: `${Number(stats.workouts?.total_hours ?? 0).toFixed(1)} h`, color: 'text-blue-400' },
+              { icon: '⚖️', label: 'Latest Weight', value: stats.latestWeight ? `${Number(stats.latestWeight).toFixed(1)} kg` : '—', color: 'text-green-400' },
+            ].map(({ icon, label, value, color }) => (
+              <div key={label} className="text-center glass rounded-xl p-3">
+                <p className="text-xl mb-1">{icon}</p>
+                <p className={`text-xl font-black ${color}`}>{value}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Badges earned */}
+      {badges.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">
+            🏅 Badges Earned ({badges.length})
+            {xp && <span className="ml-3 text-green-400 normal-case">Level {xp.level} · {xp.totalXP.toLocaleString()} XP</span>}
+          </h2>
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-2">
+            {badges.map((b: any) => (
+              <div key={b.key} className="glass rounded-xl p-3 text-center border border-yellow-500/20" title={b.desc}>
+                <p className="text-2xl mb-1">{b.icon}</p>
+                <p className="text-[10px] font-bold text-white leading-tight">{b.name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

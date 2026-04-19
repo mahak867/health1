@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "lint": "node --test src/**/*.test.js",
+    "lint": "node --test",
     "test": "node --test"
   },
   "dependencies": {

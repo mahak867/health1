@@ -83,3 +83,55 @@ adminRouter.get('/audit', async (req, res, next) => {
     return next(error);
   }
 });
+
+adminRouter.get('/stats', async (_req, res, next) => {
+  try {
+    const [
+      users,
+      vitals,
+      workouts,
+      meals,
+      appointments,
+      rankings,
+      recommendations
+    ] = await Promise.all([
+      query(`SELECT
+               COUNT(*)                                         AS total,
+               COUNT(*) FILTER (WHERE role = 'user')           AS users,
+               COUNT(*) FILTER (WHERE role = 'doctor')         AS doctors,
+               COUNT(*) FILTER (WHERE role = 'trainer')        AS trainers,
+               COUNT(*) FILTER (WHERE role = 'nutritionist')   AS nutritionists,
+               COUNT(*) FILTER (WHERE role = 'admin')          AS admins,
+               COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS new_last_30d
+             FROM users`),
+      query(`SELECT
+               COUNT(*)                                                        AS total,
+               COUNT(*) FILTER (WHERE recorded_at >= NOW() - INTERVAL '7 days') AS last_7d
+             FROM vitals`),
+      query(`SELECT COUNT(*) AS total FROM workouts`),
+      query(`SELECT COUNT(*) AS total FROM nutrition_logs`),
+      query(`SELECT
+               COUNT(*)                                                         AS total,
+               COUNT(*) FILTER (WHERE status = 'scheduled')                    AS scheduled,
+               COUNT(*) FILTER (WHERE starts_at >= NOW())                      AS upcoming
+             FROM appointments`),
+      query(`SELECT COUNT(*) AS total FROM muscle_rankings`),
+      query(`SELECT COUNT(*) AS total FROM recommendation_events
+             WHERE generated_at >= NOW() - INTERVAL '30 days'`)
+    ]);
+
+    return res.json({
+      stats: {
+        users: users.rows[0],
+        vitals: vitals.rows[0],
+        workouts: { total: workouts.rows[0].total },
+        meals: { total: meals.rows[0].total },
+        appointments: appointments.rows[0],
+        rankings: { total: rankings.rows[0].total },
+        ai_recommendations_last_30d: recommendations.rows[0].total
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});

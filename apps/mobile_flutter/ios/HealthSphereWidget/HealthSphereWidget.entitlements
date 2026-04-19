@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for the HealthSphereWidget extension target.
+  The App Group must match group.com.healthsphere.mobile.
+  Add the same App Group to the Runner (main app) target as well.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>group.com.healthsphere.mobile</string>
+  </array>
+</dict>
+</plist>

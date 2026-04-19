@@ -18,6 +18,8 @@ import { modesRouter } from './modules/modes/routes.js';
 import { aiRouter } from './modules/ai/routes.js';
 import { socialRouter } from './modules/social/routes.js';
 import { adminRouter } from './modules/admin/routes.js';
+import { gamificationRouter } from './modules/gamification/routes.js';
+import { activitiesRouter } from './modules/activities/routes.js';
 
 export function buildApp() {
   const app = express();
@@ -43,6 +45,8 @@ export function buildApp() {
   app.use('/api/v1/ai', requireAuth, auditLog, aiRouter);
   app.use('/api/v1/social', requireAuth, auditLog, socialRouter);
   app.use('/api/v1/admin', requireAuth, auditLog, adminRouter);
+  app.use('/api/v1/gamification', requireAuth, auditLog, gamificationRouter);
+  app.use('/api/v1/activities', requireAuth, auditLog, activitiesRouter);
 
   app.use(notFound);
   app.use(errorHandler);
