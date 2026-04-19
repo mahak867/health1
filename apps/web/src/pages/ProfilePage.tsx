@@ -21,6 +21,8 @@ export default function ProfilePage({ user }: Props) {
   const [saved, setSaved] = useState(false);
   const [modeSaved, setModeSaved] = useState(false);
   const [error, setError] = useState('');
+  const [badges, setBadges] = useState<any[]>([]);
+  const [xp, setXp] = useState<any>(null);
 
   useEffect(() => {
     api.get<{ profile: any }>('/health/profile').then((r) => {
@@ -34,6 +36,8 @@ export default function ProfilePage({ user }: Props) {
       }
     });
     api.get<{ mode: any }>('/modes/my').then((r) => setCurrentMode(r.mode));
+    api.get<{ badges: any[] }>('/gamification/badges').then((r) => setBadges(r.badges.filter((b: any) => b.earned))).catch(() => {});
+    api.get<any>('/gamification/xp').then(setXp).catch(() => {});
   }, []);
 
   async function saveProfile(e: React.FormEvent) {
@@ -187,6 +191,24 @@ export default function ProfilePage({ user }: Props) {
           </Card>
         </div>
       </div>
+
+      {/* Badges earned */}
+      {badges.length > 0 && (
+        <div>
+          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">
+            🏅 Badges Earned ({badges.length})
+            {xp && <span className="ml-3 text-green-400 normal-case">Level {xp.level} · {xp.totalXP.toLocaleString()} XP</span>}
+          </h2>
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-2">
+            {badges.map((b: any) => (
+              <div key={b.key} className="glass rounded-xl p-3 text-center border border-yellow-500/20" title={b.desc}>
+                <p className="text-2xl mb-1">{b.icon}</p>
+                <p className="text-[10px] font-bold text-white leading-tight">{b.name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

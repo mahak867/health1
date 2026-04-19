@@ -326,6 +326,8 @@ export default function RankingPage() {
   const [saving, setSaving]             = useState(false);
   const [error, setError]               = useState('');
   const [saved, setSaved]               = useState(false);
+  const [leaderboard, setLeaderboard]   = useState<any[]>([]);
+  const [activeTab, setActiveTab]       = useState<'rank' | 'leaderboard'>('rank');
 
   function loadMyRankings() {
     api.get<{ rankings: RankingEntry[] }>('/ranking/my')
@@ -333,7 +335,13 @@ export default function RankingPage() {
       .catch(() => {});
   }
 
-  useEffect(() => { loadMyRankings(); }, []);
+  function loadLeaderboard() {
+    api.get<{ leaderboard: any[] }>('/social/leaderboard?limit=20')
+      .then((r) => setLeaderboard(r.leaderboard))
+      .catch(() => {});
+  }
+
+  useEffect(() => { loadMyRankings(); loadLeaderboard(); }, []);
 
   const tierMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -407,7 +415,54 @@ export default function RankingPage() {
       <div>
         <h1 className="text-3xl font-black text-white">Muscle Ranking 🏆</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Click a muscle group on the body map, enter your stats, and see your tier
+          Click a muscle group on the body map, enter your stats, and see your tier</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {([['rank','🏋️ My Ranking'],['leaderboard','🌍 Global Leaderboard']] as const).map(([t,label]) => (
+          <button key={t} onClick={() => setActiveTab(t)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === t ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Leaderboard tab */}
+      {activeTab === 'leaderboard' && (
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/5">
+            <h2 className="text-sm font-bold text-white">Top Athletes by Strength Score</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Ranked by peak muscle score across all groups</p>
+          </div>
+          {leaderboard.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">No rankings yet. Be the first to submit your stats!</div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {leaderboard.map((entry, i) => {
+                const ts = TIER_STYLES[entry.tier] ?? TIER_STYLES['wood'];
+                return (
+                  <div key={`${entry.id}-${entry.muscle_group}`} className="flex items-center gap-4 px-5 py-3">
+                    <div className="w-8 text-center">
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : <span className="text-slate-500 text-sm font-bold">{i + 1}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{entry.full_name}</p>
+                      <p className="text-xs text-slate-500 capitalize">{entry.muscle_group}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-black" style={{ color: ts.color }}>{entry.score.toFixed(2)}</p>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize ${ts.badge}`}>{entry.tier}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'rank' && (<>
         </p>
       </div>
 
@@ -710,6 +765,7 @@ export default function RankingPage() {
           </div>
         </div>
       )}
+      </>)}
     </div>
   );
 }

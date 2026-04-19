@@ -1,0 +1,161 @@
+import React, { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+
+interface FeedItem {
+  id: string;
+  feed_type: 'activity' | 'workout';
+  title: string;
+  full_name: string;
+  author_id: string;
+  completed_at: string | null;
+  timestamp: string;
+  // activity fields
+  activity_type?: string;
+  distance_m?: number | null;
+  duration_seconds?: number | null;
+  calories_burned?: number | null;
+  kudos_count?: number;
+  viewer_gave_kudos?: boolean;
+  // workout fields
+  duration_seconds_workout?: number | null;
+}
+
+const ACTIVITY_ICONS: Record<string, string> = {
+  run: '🏃', ride: '🚴', walk: '🚶', swim: '🏊', hike: '🥾', row: '🚣', other: '⚡'
+};
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins < 1)    return 'just now';
+  if (mins < 60)   return `${mins}m ago`;
+  if (hours < 24)  return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
+function fmtDist(m: number | null | undefined) {
+  if (!m) return null;
+  return m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${m} m`;
+}
+
+export default function FeedPage() {
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      const r = await api.get<{ feed: FeedItem[] }>('/activities/feed/following');
+      setFeed(r.feed);
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function giveKudos(item: FeedItem) {
+    if (item.feed_type !== 'activity') return;
+    try {
+      if (item.viewer_gave_kudos) {
+        await api.delete(`/activities/${item.id}/kudos`);
+      } else {
+        await api.post(`/activities/${item.id}/kudos`, {});
+      }
+      load();
+    } catch (_) {}
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-slate-500">
+        <p>Loading feed…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-black text-white">Feed 🌊</h1>
+        <p className="text-slate-500 text-sm mt-1">Workouts &amp; activities from people you follow</p>
+      </div>
+
+      {feed.length === 0 && (
+        <div className="text-center py-20 text-slate-500">
+          <p className="text-5xl mb-3">👥</p>
+          <p className="font-semibold text-lg">Nothing here yet</p>
+          <p className="text-sm mt-2">Follow athletes to see their workouts and activities</p>
+        </div>
+      )}
+
+      {feed.map((item) => (
+        <div key={`${item.feed_type}-${item.id}`} className="glass rounded-2xl p-5">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-sm font-black text-white shrink-0">
+              {item.full_name[0]?.toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">{item.full_name}</p>
+              <p className="text-xs text-slate-500">{timeAgo(item.timestamp)}</p>
+            </div>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+              item.feed_type === 'activity' ? 'bg-orange-500/20 text-orange-300' : 'bg-blue-500/20 text-blue-300'
+            }`}>
+              {item.feed_type === 'activity'
+                ? `${ACTIVITY_ICONS[item.activity_type ?? 'other']} ${item.activity_type ?? 'Activity'}`
+                : '🏋️ Workout'}
+            </span>
+          </div>
+
+          {/* Content */}
+          <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
+
+          {item.feed_type === 'activity' && (
+            <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+              {fmtDist(item.distance_m) && (
+                <span>📍 {fmtDist(item.distance_m)}</span>
+              )}
+              {item.duration_seconds && (
+                <span>⏱️ {Math.round(item.duration_seconds / 60)} min</span>
+              )}
+              {item.calories_burned && (
+                <span>🔥 {item.calories_burned} kcal</span>
+              )}
+            </div>
+          )}
+
+          {item.feed_type === 'workout' && (
+            <div className="flex flex-wrap gap-4 text-sm text-slate-400">
+              {item.duration_seconds && (
+                <span>⏱️ {Math.round(item.duration_seconds / 60)} min</span>
+              )}
+              {item.calories_burned && (
+                <span>🔥 {item.calories_burned} kcal</span>
+              )}
+            </div>
+          )}
+
+          {/* Kudos bar (only for activities) */}
+          {item.feed_type === 'activity' && (
+            <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
+              <button
+                onClick={() => giveKudos(item)}
+                className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                  item.viewer_gave_kudos
+                    ? 'bg-yellow-500/20 text-yellow-300'
+                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                👍 {item.viewer_gave_kudos ? 'Kudos!' : 'Give Kudos'}
+              </button>
+              {(item.kudos_count ?? 0) > 0 && (
+                <span className="text-xs text-slate-500">{item.kudos_count} kudos</span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

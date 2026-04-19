@@ -36,11 +36,95 @@ export default function MealsPage() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [form, setForm] = useState(emptyM);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState<'log' | 'search' | 'recipes'>('log');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [recipeForm, setRecipeForm] = useState({ name: '', ingredients: [] as any[] });
+  const [ingForm, setIngForm] = useState({ name: '', quantityG: '', calories: '', proteinG: '', carbsG: '', fatG: '' });
 
   function load() {
     api.get<{ meals: Meal[] }>('/nutrition/meals').then((r) => setMeals(r.meals));
   }
-  useEffect(() => { load(); }, []);
+  function loadRecipes() {
+    api.get<{ recipes: any[] }>('/nutrition/recipes').then((r) => setRecipes(r.recipes)).catch(() => {});
+  }
+  useEffect(() => { load(); loadRecipes(); }, []);
+
+  async function searchFood() {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const r = await api.get<{ products: any[] }>(`/nutrition/food/search?q=${encodeURIComponent(searchQuery)}&pageSize=8`);
+      setSearchResults(r.products);
+    } catch (_) { setSearchResults([]); } finally { setSearching(false); }
+  }
+
+  async function searchBarcode() {
+    if (!barcode.trim()) return;
+    setSearching(true);
+    try {
+      const r = await api.get<{ product: any }>(`/nutrition/food/barcode/${barcode.trim()}`);
+      setSearchResults([r.product]);
+    } catch (_) { setSearchResults([]); } finally { setSearching(false); }
+  }
+
+  function fillFromProduct(p: any) {
+    setForm((f) => ({
+      ...f,
+      mealName: p.name,
+      calories: String(p.per100g.calories),
+      proteinG: String(p.per100g.proteinG),
+      carbsG:   String(p.per100g.carbsG),
+      fatG:     String(p.per100g.fatG),
+    }));
+    setTab('log');
+  }
+
+  function addIngredient() {
+    if (!ingForm.name) return;
+    setRecipeForm((f) => ({
+      ...f,
+      ingredients: [...f.ingredients, {
+        name: ingForm.name,
+        quantityG: Number(ingForm.quantityG) || 100,
+        calories: Number(ingForm.calories) || 0,
+        proteinG: Number(ingForm.proteinG) || 0,
+        carbsG:   Number(ingForm.carbsG)   || 0,
+        fatG:     Number(ingForm.fatG)     || 0,
+      }]
+    }));
+    setIngForm({ name: '', quantityG: '', calories: '', proteinG: '', carbsG: '', fatG: '' });
+  }
+
+  async function saveRecipe() {
+    if (!recipeForm.name || recipeForm.ingredients.length === 0) return;
+    try {
+      await api.post('/nutrition/recipes', recipeForm);
+      setRecipeForm({ name: '', ingredients: [] });
+      loadRecipes();
+    } catch (err: any) { setError(err.message); }
+  }
+
+  async function deleteRecipe(id: string) {
+    try { await api.delete(`/nutrition/recipes/${id}`); loadRecipes(); } catch (_) {}
+  }
+
+  async function logRecipeAsMeal(recipe: any) {
+    try {
+      await api.post('/nutrition/meals', {
+        mealType: 'snack', mealName: recipe.name,
+        consumedAt: new Date().toISOString(),
+        calories:  recipe.total_calories,
+        proteinG:  recipe.total_protein_g,
+        carbsG:    recipe.total_carbs_g,
+        fatG:      recipe.total_fat_g,
+      });
+      load();
+    } catch (_) {}
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('');
@@ -73,6 +157,18 @@ export default function MealsPage() {
       <div>
         <h1 className="text-3xl font-black text-white">Nutrition 🥗</h1>
         <p className="text-slate-500 text-sm mt-1">Track your daily food intake and macros</p>
+      </div>
+
+      {error && <div className="px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{error}</div>}
+
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {([['log','📝 Log Meal'],['search','🔍 Food Search'],['recipes','📖 Recipes']] as const).map(([t,label]) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${tab === t ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* MFP-style calorie + macro panel */}
@@ -181,6 +277,138 @@ export default function MealsPage() {
           )}
         </Card>
       </div>
+
+      {/* ─── Food Search Tab ─── */}
+      {tab === 'search' && (
+        <div className="space-y-4">
+          {/* Name search */}
+          <div className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-bold text-white mb-3">🔍 Search by Name</h2>
+            <div className="flex gap-2">
+              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchFood()}
+                placeholder="e.g. chicken breast, banana, oatmeal"
+                className="flex-1 bg-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 border border-white/10 focus:outline-none focus:border-orange-500/50" />
+              <button onClick={searchFood} disabled={searching}
+                className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-sm font-bold disabled:opacity-50">
+                {searching ? '…' : 'Search'}
+              </button>
+            </div>
+          </div>
+          {/* Barcode lookup */}
+          <div className="glass rounded-2xl p-4">
+            <h2 className="text-sm font-bold text-white mb-3">📦 Lookup by Barcode</h2>
+            <div className="flex gap-2">
+              <input value={barcode} onChange={(e) => setBarcode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchBarcode()}
+                placeholder="EAN/UPC barcode number"
+                className="flex-1 bg-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 border border-white/10 focus:outline-none focus:border-orange-500/50" />
+              <button onClick={searchBarcode} disabled={searching}
+                className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-sm font-bold disabled:opacity-50">
+                {searching ? '…' : 'Scan'}
+              </button>
+            </div>
+          </div>
+          {/* Results */}
+          {searchResults.length > 0 && (
+            <div className="space-y-2">
+              {searchResults.map((p, i) => (
+                <div key={i} className="glass rounded-2xl p-4 flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{p.name}</p>
+                    {p.brand && <p className="text-xs text-slate-500">{p.brand}</p>}
+                    <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                      <span className="text-orange-300">🔥 {p.per100g.calories} kcal</span>
+                      <span className="text-blue-300">P {p.per100g.proteinG}g</span>
+                      <span className="text-amber-300">C {p.per100g.carbsG}g</span>
+                      <span className="text-rose-300">F {p.per100g.fatG}g</span>
+                      <span className="text-slate-500">per 100g</span>
+                    </div>
+                  </div>
+                  <button onClick={() => fillFromProduct(p)}
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold">
+                    Use
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {searchResults.length === 0 && !searching && (searchQuery || barcode) && (
+            <p className="text-center text-slate-500 text-sm py-8">No results found. Try a different search term.</p>
+          )}
+        </div>
+      )}
+
+      {/* ─── Recipes Tab ─── */}
+      {tab === 'recipes' && (
+        <div className="space-y-6">
+          {/* Build recipe */}
+          <div className="glass rounded-2xl p-5">
+            <h2 className="text-base font-bold text-white mb-4">📖 Build a Recipe</h2>
+            <input value={recipeForm.name} onChange={(e) => setRecipeForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Recipe name" className="w-full bg-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 border border-white/10 focus:outline-none focus:border-orange-500/50 mb-3" />
+            {/* Add ingredient */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+              {[['Name', 'name', 'text'], ['Qty (g)', 'quantityG', 'number'], ['Kcal', 'calories', 'number'], ['Protein g', 'proteinG', 'number'], ['Carbs g', 'carbsG', 'number'], ['Fat g', 'fatG', 'number']].map(([label, key, type]) => (
+                <input key={key} type={type} placeholder={label} value={(ingForm as any)[key]}
+                  onChange={(e) => setIngForm((f) => ({ ...f, [key]: e.target.value }))}
+                  className="bg-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 border border-white/10 focus:outline-none focus:border-orange-500/50" />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={addIngredient} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-sm font-semibold">+ Add Ingredient</button>
+              <button onClick={saveRecipe} disabled={!recipeForm.name || recipeForm.ingredients.length === 0}
+                className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-sm font-bold disabled:opacity-40">Save Recipe</button>
+            </div>
+            {recipeForm.ingredients.length > 0 && (
+              <div className="mt-4 space-y-1">
+                {recipeForm.ingredients.map((ing, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs text-slate-400 px-2">
+                    <span>{ing.name} ({ing.quantityG}g)</span>
+                    <span>{ing.calories} kcal · P{ing.proteinG} C{ing.carbsG} F{ing.fatG}</span>
+                  </div>
+                ))}
+                <div className="border-t border-white/10 pt-2 mt-2 text-xs font-bold text-white px-2 flex justify-between">
+                  <span>Total:</span>
+                  <span>
+                    {recipeForm.ingredients.reduce((s, i) => s + i.calories, 0)} kcal ·
+                    P{recipeForm.ingredients.reduce((s, i) => s + i.proteinG, 0)}g ·
+                    C{recipeForm.ingredients.reduce((s, i) => s + i.carbsG, 0)}g ·
+                    F{recipeForm.ingredients.reduce((s, i) => s + i.fatG, 0)}g
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Saved recipes */}
+          {recipes.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Saved Recipes</h2>
+              {recipes.map((r) => (
+                <div key={r.id} className="glass rounded-2xl p-4 flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white">{r.name}</p>
+                    <div className="flex flex-wrap gap-3 mt-1 text-xs">
+                      <span className="text-orange-300">🔥 {Math.round(r.total_calories)} kcal</span>
+                      <span className="text-blue-300">P {Number(r.total_protein_g).toFixed(1)}g</span>
+                      <span className="text-amber-300">C {Number(r.total_carbs_g).toFixed(1)}g</span>
+                      <span className="text-rose-300">F {Number(r.total_fat_g).toFixed(1)}g</span>
+                      <span className="text-slate-500">{(r.ingredients as any[]).length} ingredients</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => logRecipeAsMeal(r)}
+                      className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold">Log</button>
+                    <button onClick={() => deleteRecipe(r.id)}
+                      className="px-2 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

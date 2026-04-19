@@ -323,3 +323,40 @@ test('estimateVO2Max: invalid (zero resting HR) returns null', () => {
   const result = estimateVO2Max({ maxHeartRate: 190, restingHeartRate: 0 });
   assert.equal(result, null);
 });
+
+// ─── Gamification service tests ───────────────────────────────────────────────
+import { levelFromXP } from './modules/gamification/service.js';
+
+test('levelFromXP: zero XP is level 1 at 0% progress', () => {
+  const { level, progress } = levelFromXP(0);
+  assert.equal(level, 1);
+  assert.equal(progress, 0);
+});
+
+test('levelFromXP: negative XP treated as 0', () => {
+  const { level } = levelFromXP(-100);
+  assert.equal(level, 1);
+});
+
+test('levelFromXP: exactly at level 2 threshold (100 XP)', () => {
+  const { level } = levelFromXP(100);
+  assert.equal(level, 2);
+});
+
+test('levelFromXP: progress is between 0 and 100', () => {
+  for (const xp of [0, 50, 100, 350, 1000]) {
+    const { progress } = levelFromXP(xp);
+    assert.ok(progress >= 0 && progress <= 100, `progress ${progress} out of range for ${xp} XP`);
+  }
+});
+
+test('levelFromXP: higher XP gives higher level', () => {
+  const { level: l1 } = levelFromXP(100);
+  const { level: l2 } = levelFromXP(1000);
+  assert.ok(l2 > l1, `expected ${l2} > ${l1}`);
+});
+
+test('levelFromXP: nextLevelXP is positive', () => {
+  const { nextLevelXP } = levelFromXP(50);
+  assert.ok(nextLevelXP > 0);
+});

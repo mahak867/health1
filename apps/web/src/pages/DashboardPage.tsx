@@ -37,11 +37,15 @@ export default function DashboardPage({ user, onNavigate }: Props) {
   const [profile, setProfile] = useState<any>(null);
   const [mode, setMode] = useState<any>(null);
   const [latestVital, setLatestVital] = useState<any>(null);
+  const [xp, setXp] = useState<any>(null);
+  const [challenges, setChallenges] = useState<any[]>([]);
 
   useEffect(() => {
     api.get<{ profile: any }>('/health/profile').then((r) => setProfile(r.profile)).catch(() => {});
     api.get<{ mode: any }>('/modes/my').then((r) => setMode(r.mode)).catch(() => {});
     api.get<{ vitals: any[] }>('/health/vitals?limit=1').then((r) => setLatestVital(r.vitals[0] ?? null)).catch(() => {});
+    api.get<any>('/gamification/xp').then(setXp).catch(() => {});
+    api.get<{ challenges: any[] }>('/gamification/challenges').then((r) => setChallenges(r.challenges)).catch(() => {});
   }, []);
 
   const quickActions = QUICK_ACTIONS[user.role] ?? QUICK_ACTIONS['user'];
@@ -118,6 +122,59 @@ export default function DashboardPage({ user, onNavigate }: Props) {
       </div>
 
       {/* Summary cards — MFP-style structured data rows */}
+      {/* XP Level bar + Daily challenges */}
+      {xp && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* XP / Level */}
+          <div className="card-solid rounded-2xl p-5 border border-white/10 cursor-pointer hover:border-green-500/30 transition-colors"
+            onClick={() => onNavigate('Gamification')}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🎮 Level & XP</p>
+              <span className="text-xs text-slate-500">view all →</span>
+            </div>
+            <div className="flex items-end gap-3 mb-3">
+              <span className="text-4xl font-black text-green-400">{xp.level}</span>
+              <div className="flex-1 mb-1">
+                <p className="text-xs text-slate-400 mb-1">{xp.currentLevelXP} / {xp.nextLevelXP} XP</p>
+                <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full"
+                    style={{ width: `${xp.progress}%`, background: 'linear-gradient(90deg,#22c55e,#4ade80)' }} />
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">{xp.totalXP.toLocaleString()} total XP · {xp.progress}% to Level {xp.level + 1}</p>
+          </div>
+
+          {/* Daily challenges */}
+          <div className="card-solid rounded-2xl p-5 border border-white/10 cursor-pointer hover:border-yellow-500/30 transition-colors"
+            onClick={() => onNavigate('Gamification')}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🎯 Daily Challenges</p>
+              <span className="text-xs text-slate-500">view all →</span>
+            </div>
+            <div className="space-y-2">
+              {challenges.filter((c) => c.cadence === 'daily').slice(0, 3).map((c: any) => {
+                const pct = Math.min((c.userProgress / c.goal) * 100, 100);
+                return (
+                  <div key={c.id} className="flex items-center gap-3">
+                    <span className="text-base">{c.completed ? '✅' : c.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between text-xs mb-0.5">
+                        <span className={`font-semibold truncate ${c.completed ? 'text-green-400' : 'text-white'}`}>{c.title}</span>
+                        <span className="text-yellow-400 font-bold shrink-0 ml-2">+{c.xp_reward}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.completed ? '#22c55e' : '#f59e0b' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-3">
         {/* Health Profile */}
         <div className="card-solid rounded-2xl p-5 border border-white/10 border-t-2 border-t-emerald-500/70">

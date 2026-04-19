@@ -7,11 +7,14 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import VitalsPage from './pages/VitalsPage';
 import WorkoutsPage from './pages/WorkoutsPage';
+import ActivitiesPage from './pages/ActivitiesPage';
+import FeedPage from './pages/FeedPage';
 import MealsPage from './pages/MealsPage';
 import TelemedicinePage from './pages/TelemedicinePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ProfilePage from './pages/ProfilePage';
 import RankingPage from './pages/RankingPage';
+import GamificationPage from './pages/GamificationPage';
 import AiPage from './pages/AiPage';
 import Navbar from './components/Navbar';
 
@@ -19,11 +22,14 @@ const PAGES: Record<string, React.FC<any>> = {
   Dashboard: DashboardPage,
   Vitals: VitalsPage,
   Workouts: WorkoutsPage,
+  Activities: ActivitiesPage,
+  Feed: FeedPage,
   Meals: MealsPage,
   Telemedicine: TelemedicinePage,
   Notifications: NotificationsPage,
   Profile: ProfilePage,
   Ranking: RankingPage,
+  Gamification: GamificationPage,
   'AI Engine': AiPage,
 };
 
