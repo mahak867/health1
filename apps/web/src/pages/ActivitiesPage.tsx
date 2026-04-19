@@ -143,6 +143,21 @@ export default function ActivitiesPage() {
   const totalCal     = activities.reduce((s, a) => s + (a.calories_burned ?? 0), 0);
   const totalTime    = activities.reduce((s, a) => s + (a.duration_seconds ?? 0), 0);
 
+  // This week's stats
+  const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); startOfWeek.setHours(0,0,0,0);
+  const thisWeek    = activities.filter((a) => new Date(a.completed_at) >= startOfWeek);
+  const weekDist    = thisWeek.reduce((s, a) => s + (a.distance_m ?? 0), 0);
+  const weekTime    = thisWeek.reduce((s, a) => s + (a.duration_seconds ?? 0), 0);
+  const weekCal     = thisWeek.reduce((s, a) => s + (a.calories_burned ?? 0), 0);
+
+  // Activity type distribution (this month)
+  const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0);
+  const thisMonth = activities.filter((a) => new Date(a.completed_at) >= startOfMonth);
+  const typeCounts: Record<string, number> = {};
+  thisMonth.forEach((a) => { typeCounts[a.activity_type] = (typeCounts[a.activity_type] ?? 0) + 1; });
+  const typeTotal = Object.values(typeCounts).reduce((s, v) => s + v, 0);
+  const TYPE_COLORS: Record<string, string> = { run: '#f97316', ride: '#3b82f6', walk: '#22c55e', swim: '#06b6d4', hike: '#a855f7', row: '#f59e0b', other: '#6b7280' };
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
@@ -199,6 +214,85 @@ export default function ActivitiesPage() {
           </div>
         </div>
       )}
+
+      {/* This Week's Progress (Strava-style) + Activity Type Distribution */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Weekly summary */}
+        <div className="glass rounded-2xl p-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">📅 This Week</p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xl font-black text-orange-400">{fmtDist(weekDist) ?? '—'}</p>
+              <p className="text-[10px] text-slate-500">Distance</p>
+            </div>
+            <div>
+              <p className="text-xl font-black text-blue-400">{fmt(weekTime)}</p>
+              <p className="text-[10px] text-slate-500">Active Time</p>
+            </div>
+            <div>
+              <p className="text-xl font-black text-red-400">{weekCal.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-500">Kcal Burned</p>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/5">
+            <p className="text-[10px] text-slate-500">{thisWeek.length} activities this week</p>
+            {/* Weekly distance progress toward 30km goal */}
+            <div className="mt-2">
+              <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                <span>Weekly distance goal</span>
+                <span className="font-bold text-orange-300">{fmtDist(weekDist) ?? '0'} / 30 km</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${Math.min((weekDist / 30000) * 100, 100)}%`, background: '#f97316' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Activity type distribution pie */}
+        {typeTotal > 0 && (
+          <div className="glass rounded-2xl p-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">📊 This Month</p>
+            <div className="flex items-center gap-4">
+              {/* Mini donut */}
+              {(() => {
+                const R = 36; const cx = 42; const cy = 42; const sw = 14;
+                const circ = 2 * Math.PI * R;
+                let offset = 0;
+                const types = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+                return (
+                  <svg width={84} height={84} viewBox="0 0 84 84" className="shrink-0">
+                    <circle cx={cx} cy={cy} r={R} fill="none" stroke="#ffffff08" strokeWidth={sw} />
+                    {types.map(([type, count]) => {
+                      const frac = count / typeTotal;
+                      const el = (
+                        <circle key={type} cx={cx} cy={cy} r={R}
+                          fill="none" stroke={TYPE_COLORS[type] ?? '#6b7280'} strokeWidth={sw}
+                          strokeDasharray={`${frac * circ} ${circ}`}
+                          strokeDashoffset={-offset * circ}
+                          transform={`rotate(-90 ${cx} ${cy})`} />
+                      );
+                      offset += frac;
+                      return el;
+                    })}
+                    <text x={cx} y={cy + 4} textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">{typeTotal}</text>
+                  </svg>
+                );
+              })()}
+              <div className="space-y-1.5 flex-1">
+                {Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                  <div key={type} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TYPE_COLORS[type] ?? '#6b7280' }} />
+                    <span className="capitalize text-slate-300 flex-1">{type}</span>
+                    <span className="font-bold text-white">{count}</span>
+                    <span className="text-slate-500">({Math.round((count / typeTotal) * 100)}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Log form */}
       {showForm && (

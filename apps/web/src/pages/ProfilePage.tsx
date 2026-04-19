@@ -47,6 +47,36 @@ export default function ProfilePage({ user }: Props) {
   // Emergency contacts state
   const [emergencyContacts, setEmergencyContacts] = useState<Array<{ name: string; phone: string; relation: string }>>([]);
   const [newContact, setNewContact] = useState({ name: '', phone: '', relation: '' });
+  // Body measurements
+  const [bodyMeasurements, setBodyMeasurements] = useState<any[]>([]);
+  const [measForm, setMeasForm] = useState({ waist: '', hips: '', chest: '', neck: '', leftArm: '', rightArm: '', leftThigh: '', shoulders: '' });
+  const [savingMeas, setSavingMeas] = useState(false);
+
+  function loadBodyMeasurements() {
+    api.get<{ measurements: any[] }>('/health/body-measurements').then((r) => setBodyMeasurements(r.measurements)).catch(() => {});
+  }
+
+  async function saveBodyMeasurement(e: React.FormEvent) {
+    e.preventDefault();
+    const hasValue = Object.values(measForm).some((v) => v !== '');
+    if (!hasValue) return;
+    setSavingMeas(true);
+    try {
+      const body: any = {};
+      if (measForm.waist)      body.waistCm     = Number(measForm.waist);
+      if (measForm.hips)       body.hipsCm      = Number(measForm.hips);
+      if (measForm.chest)      body.chestCm     = Number(measForm.chest);
+      if (measForm.neck)       body.neckCm      = Number(measForm.neck);
+      if (measForm.leftArm)    body.leftArmCm   = Number(measForm.leftArm);
+      if (measForm.rightArm)   body.rightArmCm  = Number(measForm.rightArm);
+      if (measForm.leftThigh)  body.leftThighCm = Number(measForm.leftThigh);
+      if (measForm.shoulders)  body.shouldersCm = Number(measForm.shoulders);
+      await api.post('/health/body-measurements', body);
+      setMeasForm({ waist: '', hips: '', chest: '', neck: '', leftArm: '', rightArm: '', leftThigh: '', shoulders: '' });
+      loadBodyMeasurements();
+    } catch (_) {}
+    setSavingMeas(false);
+  }
 
 
   useEffect(() => {
@@ -66,6 +96,7 @@ export default function ProfilePage({ user }: Props) {
     api.get<{ badges: any[] }>('/gamification/badges').then((r) => setBadges(r.badges.filter((b: any) => b.earned))).catch(() => {});
     api.get<any>('/gamification/xp').then(setXp).catch(() => {});
     api.get<any>('/health/stats').then(setStats).catch(() => {});
+    loadBodyMeasurements();
   }, []);
 
   async function saveProfile(e: React.FormEvent) {
@@ -391,6 +422,81 @@ export default function ProfilePage({ user }: Props) {
           </div>
         );
       })()}
+
+      {/* ─── Body Measurements ─── */}
+      <div className="glass rounded-2xl p-5 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">📏 Body Measurements</p>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <form onSubmit={saveBodyMeasurement} className="space-y-3">
+            <p className="text-xs text-slate-500">Track waist, hips, chest and more to see body composition changes over time</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['Waist (cm)',    'waist'], ['Hips (cm)',     'hips'],
+                ['Chest (cm)',   'chest'], ['Neck (cm)',     'neck'],
+                ['L. Arm (cm)',  'leftArm'], ['R. Arm (cm)', 'rightArm'],
+                ['L. Thigh (cm)','leftThigh'], ['Shoulders', 'shoulders'],
+              ].map(([label, key]) => (
+                <div key={key}>
+                  <p className="text-[9px] text-slate-600 mb-0.5">{label}</p>
+                  <input type="number" step="0.1" min="0" max="300" placeholder="—"
+                    value={(measForm as any)[key]}
+                    onChange={(e) => setMeasForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="w-full rounded-xl glass px-2 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/40" />
+                </div>
+              ))}
+            </div>
+            <button type="submit" disabled={savingMeas}
+              className="w-full py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+              {savingMeas ? 'Saving…' : '📏 Log Measurements'}
+            </button>
+          </form>
+
+          {/* Latest measurements */}
+          {bodyMeasurements.length > 0 && (() => {
+            const latest = bodyMeasurements[0];
+            const prev   = bodyMeasurements[1];
+            const fields = [
+              { key: 'waist_cm', label: 'Waist' },
+              { key: 'hips_cm', label: 'Hips' },
+              { key: 'chest_cm', label: 'Chest' },
+              { key: 'neck_cm', label: 'Neck' },
+              { key: 'left_arm_cm', label: 'L. Arm' },
+              { key: 'right_arm_cm', label: 'R. Arm' },
+              { key: 'left_thigh_cm', label: 'L. Thigh' },
+              { key: 'shoulders_cm', label: 'Shoulders' },
+            ].filter((f) => latest[f.key] != null);
+            if (fields.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[10px] text-slate-500 mb-2 uppercase tracking-widest">Latest ({new Date(latest.measured_at).toLocaleDateString()})</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {fields.map(({ key, label }) => {
+                    const val  = Number(latest[key]);
+                    const pVal = prev ? Number(prev[key]) : null;
+                    const diff = pVal ? val - pVal : null;
+                    return (
+                      <div key={key} className="glass rounded-xl p-2 text-center">
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="text-sm font-black text-white">{val} cm</p>
+                        {diff !== null && Math.abs(diff) > 0.1 && (
+                          <p className={`text-[9px] ${diff > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(1)} cm
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+          {bodyMeasurements.length === 0 && (
+            <div className="flex items-center justify-center text-xs text-slate-600 text-center">
+              <p>Log measurements to track<br />your body composition changes</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ─── Lifetime Personal Stats ─── */}
       {stats && (

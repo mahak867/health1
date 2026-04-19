@@ -536,3 +536,58 @@ healthRouter.delete('/lab-results/:id', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Body Measurements ────────────────────────────────────────────────────────
+const bodyMeasSchema = z.object({
+  measuredAt:     z.string().optional(),
+  waistCm:        z.number().positive().optional(),
+  hipsCm:         z.number().positive().optional(),
+  chestCm:        z.number().positive().optional(),
+  neckCm:         z.number().positive().optional(),
+  leftArmCm:      z.number().positive().optional(),
+  rightArmCm:     z.number().positive().optional(),
+  leftThighCm:    z.number().positive().optional(),
+  rightThighCm:   z.number().positive().optional(),
+  leftCalfCm:     z.number().positive().optional(),
+  rightCalfCm:    z.number().positive().optional(),
+  shouldersCm:    z.number().positive().optional(),
+  notes:          z.string().optional(),
+});
+
+healthRouter.get('/body-measurements', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT * FROM body_measurements WHERE user_id = $1 ORDER BY measured_at DESC LIMIT 30`,
+      [req.user.sub]
+    );
+    return res.json({ measurements: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthRouter.post('/body-measurements', async (req, res, next) => {
+  try {
+    const data = bodyMeasSchema.parse(req.body);
+    const result = await query(
+      `INSERT INTO body_measurements (
+         user_id, measured_at, waist_cm, hips_cm, chest_cm, neck_cm,
+         left_arm_cm, right_arm_cm, left_thigh_cm, right_thigh_cm,
+         left_calf_cm, right_calf_cm, shoulders_cm, notes
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       RETURNING *`,
+      [
+        req.user.sub,
+        data.measuredAt ? new Date(data.measuredAt).toISOString() : new Date().toISOString(),
+        data.waistCm ?? null, data.hipsCm ?? null, data.chestCm ?? null, data.neckCm ?? null,
+        data.leftArmCm ?? null, data.rightArmCm ?? null,
+        data.leftThighCm ?? null, data.rightThighCm ?? null,
+        data.leftCalfCm ?? null, data.rightCalfCm ?? null,
+        data.shouldersCm ?? null, data.notes ?? null,
+      ]
+    );
+    return res.status(201).json({ measurement: result.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
