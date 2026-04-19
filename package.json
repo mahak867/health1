@@ -1,0 +1,15 @@
+{
+  "name": "healthsphere",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace @healthsphere/api",
+    "start:api": "npm run start --workspace @healthsphere/api",
+    "lint": "npm run lint --workspace @healthsphere/api",
+    "test": "npm run test --workspace @healthsphere/api"
+  }
+}
