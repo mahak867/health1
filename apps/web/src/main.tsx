@@ -43,7 +43,7 @@ function App() {
   const PageComponent = PAGES[page] ?? DashboardPage;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-[#0b0b12] text-slate-100">
       <Navbar user={user} page={page} onNavigate={setPage} onLogout={handleLogout} />
       <PageComponent user={user} onNavigate={setPage} />
     </div>
