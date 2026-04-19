@@ -15,6 +15,20 @@ dependencies:
   shared_preferences: ^2.3.2
   # HTTP client for API calls from Flutter
   http: ^1.2.2
+  # Offline-first local SQLite database
+  sqflite: ^2.3.3+1
+  # File-system path utilities (needed by sqflite)
+  path: ^1.9.0
+  # Biometric authentication (Face ID, Touch ID, fingerprint)
+  local_auth: ^2.3.0
+  # GPS location (foreground + background tracking)
+  geolocator: ^13.0.1
+  # Camera-based barcode / QR scanner
+  mobile_scanner: ^5.2.3
+  # HealthKit (iOS) + Health Connect (Android) read/write
+  health: ^11.0.0
+  # Step counting via hardware pedometer sensor
+  pedometer: ^4.0.3
 
 dev_dependencies:
   flutter_test:
