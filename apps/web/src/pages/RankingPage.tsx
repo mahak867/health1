@@ -463,8 +463,6 @@ export default function RankingPage() {
       )}
 
       {activeTab === 'rank' && (<>
-        </p>
-      </div>
 
       {error && (
         <div className="px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">

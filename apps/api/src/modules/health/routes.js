@@ -248,3 +248,91 @@ healthModuleRouter.post('/emergency/trigger', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Water Intake ─────────────────────────────────────────────────────────────
+const waterSchema = z.object({
+  milliliters: z.number().int().min(1).max(5000),
+  loggedAt: z.string().datetime().optional()
+});
+
+healthModuleRouter.get('/water', async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    const targetDate = date ? new Date(date) : new Date();
+    const dayStart = new Date(targetDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(targetDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const result = await query(
+      `SELECT id, logged_at, milliliters FROM water_logs
+       WHERE user_id = $1 AND logged_at BETWEEN $2 AND $3
+       ORDER BY logged_at DESC`,
+      [req.user.sub, dayStart.toISOString(), dayEnd.toISOString()]
+    );
+    const totalMl = result.rows.reduce((sum, r) => sum + r.milliliters, 0);
+    return res.json({ logs: result.rows, totalMl });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/water', async (req, res, next) => {
+  try {
+    const input = waterSchema.parse(req.body);
+    const created = await query(
+      `INSERT INTO water_logs (user_id, milliliters, logged_at)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [req.user.sub, input.milliliters, input.loggedAt ?? new Date().toISOString()]
+    );
+    return res.status(201).json({ log: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Body Weight Tracking ─────────────────────────────────────────────────────
+const bodyWeightSchema = z.object({
+  weightKg: z.number().min(20).max(700),
+  bodyFatPct: z.number().min(0).max(100).optional(),
+  notes: z.string().max(500).optional(),
+  loggedAt: z.string().datetime().optional()
+});
+
+healthModuleRouter.get('/weight', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT id, logged_at, weight_kg, body_fat_pct, notes
+       FROM body_weight_logs
+       WHERE user_id = $1
+       ORDER BY logged_at DESC
+       LIMIT 180`,
+      [req.user.sub]
+    );
+    return res.json({ logs: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/weight', async (req, res, next) => {
+  try {
+    const input = bodyWeightSchema.parse(req.body);
+    const created = await query(
+      `INSERT INTO body_weight_logs (user_id, weight_kg, body_fat_pct, notes, logged_at)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        req.user.sub,
+        input.weightKg,
+        input.bodyFatPct ?? null,
+        input.notes ?? null,
+        input.loggedAt ?? new Date().toISOString()
+      ]
+    );
+    return res.status(201).json({ log: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});

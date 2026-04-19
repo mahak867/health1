@@ -36,7 +36,7 @@ export default function MealsPage() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [form, setForm] = useState(emptyM);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'log' | 'search' | 'recipes'>('log');
+  const [tab, setTab] = useState<'log' | 'search' | 'recipes' | 'water'>('log');
   const [searchQuery, setSearchQuery] = useState('');
   const [barcode, setBarcode] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -44,6 +44,10 @@ export default function MealsPage() {
   const [recipes, setRecipes] = useState<any[]>([]);
   const [recipeForm, setRecipeForm] = useState({ name: '', ingredients: [] as any[] });
   const [ingForm, setIngForm] = useState({ name: '', quantityG: '', calories: '', proteinG: '', carbsG: '', fatG: '' });
+  const [waterTotal, setWaterTotal] = useState(0);
+  const [waterLogs, setWaterLogs] = useState<any[]>([]);
+
+  const WATER_GOAL = 2500;
 
   function load() {
     api.get<{ meals: Meal[] }>('/nutrition/meals').then((r) => setMeals(r.meals));
@@ -51,7 +55,20 @@ export default function MealsPage() {
   function loadRecipes() {
     api.get<{ recipes: any[] }>('/nutrition/recipes').then((r) => setRecipes(r.recipes)).catch(() => {});
   }
-  useEffect(() => { load(); loadRecipes(); }, []);
+  function loadWater() {
+    api.get<{ logs: any[]; totalMl: number }>('/health/water').then((r) => {
+      setWaterTotal(r.totalMl);
+      setWaterLogs(r.logs);
+    }).catch(() => {});
+  }
+  useEffect(() => { load(); loadRecipes(); loadWater(); }, []);
+
+  async function logWater(ml: number) {
+    try {
+      await api.post('/health/water', { milliliters: ml, loggedAt: new Date().toISOString() });
+      loadWater();
+    } catch (_) {}
+  }
 
   async function searchFood() {
     if (!searchQuery.trim()) return;
@@ -162,8 +179,8 @@ export default function MealsPage() {
       {error && <div className="px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{error}</div>}
 
       {/* Tabs */}
-      <div className="flex gap-2">
-        {([['log','📝 Log Meal'],['search','🔍 Food Search'],['recipes','📖 Recipes']] as const).map(([t,label]) => (
+      <div className="flex gap-2 flex-wrap">
+        {([['log','📝 Log Meal'],['search','🔍 Food Search'],['recipes','📖 Recipes'],['water','💧 Hydration']] as const).map(([t,label]) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${tab === t ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
             {label}
@@ -405,6 +422,77 @@ export default function MealsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Water Tab ─── */}
+      {tab === 'water' && (
+        <div className="space-y-6">
+          {/* Daily progress */}
+          <div className="glass rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-white">💧 Daily Hydration</h2>
+              <span className="text-lg font-black text-cyan-400">{(waterTotal / 1000).toFixed(2)} L</span>
+            </div>
+            <div className="relative h-4 rounded-full bg-white/5 overflow-hidden mb-3">
+              <div className="absolute inset-y-0 left-0 rounded-full transition-all"
+                style={{ width: `${Math.min((waterTotal / WATER_GOAL) * 100, 100)}%`, background: 'linear-gradient(90deg,#06b6d4,#3b82f6)' }} />
+            </div>
+            <p className="text-sm text-slate-400 text-center">
+              {waterTotal} ml / {WATER_GOAL} ml goal
+              {waterTotal >= WATER_GOAL && ' ✅ Goal reached!'}
+            </p>
+            <div className="flex justify-center gap-2 mt-4">
+              {Array.from({ length: 8 }).map((_, i) => {
+                const glassSize = WATER_GOAL / 8;
+                const filled = waterTotal >= glassSize * (i + 1);
+                const partial = !filled && waterTotal > glassSize * i;
+                return (
+                  <div key={i} className={`text-2xl transition-all ${filled ? 'opacity-100' : partial ? 'opacity-60' : 'opacity-20'}`}>
+                    💧
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick add buttons */}
+          <div className="glass rounded-2xl p-5">
+            <h3 className="text-sm font-bold text-slate-300 mb-4">Quick Add</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Small Glass', ml: 200, icon: '🥛' },
+                { label: 'Glass', ml: 250, icon: '🥤' },
+                { label: 'Large Glass', ml: 350, icon: '🫗' },
+                { label: 'Bottle', ml: 500, icon: '🍶' },
+                { label: 'Large Bottle', ml: 750, icon: '🧃' },
+                { label: '1 Litre', ml: 1000, icon: '💧' },
+                { label: 'Post-Workout', ml: 600, icon: '🏋️' },
+                { label: 'With Coffee', ml: 300, icon: '☕' },
+              ].map((opt) => (
+                <button key={`${opt.ml}-${opt.label}`} onClick={() => logWater(opt.ml)}
+                  className="flex flex-col items-center gap-1.5 p-3 glass rounded-xl hover:bg-cyan-500/10 border border-white/5 transition-all active:scale-95">
+                  <span className="text-xl">{opt.icon}</span>
+                  <span className="text-xs font-bold text-white">{opt.ml} ml</span>
+                  <span className="text-[10px] text-slate-500">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {waterLogs.length > 0 && (
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-sm font-bold text-slate-300 mb-3">Today's Log</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {waterLogs.map((log) => (
+                  <div key={log.id} className="flex justify-between items-center text-sm py-1.5 border-b border-white/5 last:border-0">
+                    <span className="text-slate-400">{new Date(log.logged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-cyan-300 font-bold">💧 {log.milliliters} ml</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

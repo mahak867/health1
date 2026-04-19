@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Card from '../components/Card';
 import { api } from '../lib/api';
 
@@ -35,6 +35,11 @@ export default function WorkoutsPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'workouts' | 'templates' | 'prs'>('workouts');
   const [newPRFlash, setNewPRFlash] = useState<string | null>(null);
+  // Rest timer
+  const [restTimer, setRestTimer] = useState<number | null>(null);
+  const restIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Exercise history hint for progressive overload
+  const [exHistory, setExHistory] = useState<any[]>([]);
 
   function loadWorkouts() {
     api.get<{ workouts: Workout[] }>('/fitness/workouts').then((r) => setWorkouts(r.workouts));
@@ -49,6 +54,34 @@ export default function WorkoutsPage() {
     api.get<{ templates: Template[] }>('/fitness/templates').then((r) => setTemplates(r.templates)).catch(() => {});
   }
   useEffect(() => { loadWorkouts(); loadPRs(); loadTemplates(); }, []);
+
+  // Fetch exercise history when exercise name changes (for progressive overload hint)
+  const fetchExHistory = useCallback((name: string) => {
+    if (!name.trim()) { setExHistory([]); return; }
+    api.get<{ history: any[] }>(`/fitness/exercises/${encodeURIComponent(name)}/history`)
+      .then((r) => setExHistory(r.history))
+      .catch(() => setExHistory([]));
+  }, []);
+
+  // Start rest timer
+  function startRestTimer(seconds: number) {
+    if (seconds <= 0) return;
+    if (restIntervalRef.current) clearInterval(restIntervalRef.current);
+    setRestTimer(seconds);
+    restIntervalRef.current = setInterval(() => {
+      setRestTimer((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(restIntervalRef.current!);
+          restIntervalRef.current = null;
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (restIntervalRef.current) clearInterval(restIntervalRef.current); }, []);
 
   const prMap = new Map(prs.map((p) => [p.exercise_name.toLowerCase(), p]));
 
@@ -109,6 +142,9 @@ export default function WorkoutsPage() {
         setTimeout(() => setNewPRFlash(null), 4000);
         loadPRs();
       }
+      // Start rest timer
+      const restSecs = Number(eForm.restSeconds);
+      if (restSecs > 0) startRestTimer(restSecs);
       setEForm(emptyE); loadExercises(selected.id);
     } catch (err: any) { setError(err.message); }
   }
@@ -204,6 +240,25 @@ export default function WorkoutsPage() {
           {/* Exercise panel */}
           {selected ? (
             <Card title={selected.title} accent="violet">
+              {/* Rest Timer — shown while counting down */}
+              {restTimer !== null && (
+                <div className="mb-3 px-4 py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">⏱️</span>
+                    <span className="text-sm font-bold text-violet-200">Rest Timer</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl font-black text-white tabular-nums">
+                      {Math.floor(restTimer / 60)}:{String(restTimer % 60).padStart(2, '0')}
+                    </span>
+                    <button onClick={() => { if (restIntervalRef.current) clearInterval(restIntervalRef.current); setRestTimer(null); }}
+                      className="text-xs text-slate-500 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10">
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={addExercise} className="space-y-2 mb-4">
                 <input
                   className="w-full rounded-xl glass px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
@@ -212,7 +267,17 @@ export default function WorkoutsPage() {
                 <input
                   className="w-full rounded-xl glass px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/30"
                   placeholder="Exercise name (e.g. Bench Press)" value={eForm.exerciseName}
-                  onChange={(e) => setEForm({...eForm, exerciseName: e.target.value})} required />
+                  onChange={(e) => { setEForm({...eForm, exerciseName: e.target.value}); fetchExHistory(e.target.value); }} required />
+                {/* Progressive overload hint */}
+                {exHistory.length > 0 && (
+                  <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                    <span className="font-bold">Last logged:</span>{' '}
+                    {exHistory[0].sets}×{exHistory[0].reps} @ {exHistory[0].weight_kg}kg
+                    {exHistory[0].weight_kg > 0 && (
+                      <span className="text-slate-400"> · Try <span className="text-emerald-400 font-bold">{(Number(exHistory[0].weight_kg) + 2.5).toFixed(1)}kg</span> today (+2.5kg)</span>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-1.5">
                   {([['Sets', 'sets'], ['Reps', 'reps'], ['Weight kg', 'weightKg'], ['Rest s', 'restSeconds']] as const).map(([label, key]) => (
                     <input key={key} type="number"
@@ -223,7 +288,7 @@ export default function WorkoutsPage() {
                 </div>
                 <button type="submit"
                   className="w-full py-2 rounded-xl bg-violet-600/80 hover:bg-violet-500/80 text-white text-xs font-bold transition-colors">
-                  + Add Exercise
+                  + Add Exercise {Number(eForm.restSeconds) > 0 ? `(then rest ${eForm.restSeconds}s)` : ''}
                 </button>
               </form>
 
@@ -312,7 +377,7 @@ export default function WorkoutsPage() {
 
       {/* ─── PRs Tab ─── */}
       {activeTab === 'prs' && (
-        <div className="space-y-3">
+        <div className="space-y-6">
           {prs.length === 0 && (
             <div className="text-center py-16 text-slate-500">
               <p className="text-4xl mb-3">🏆</p>
@@ -342,6 +407,57 @@ export default function WorkoutsPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Strength Standards Reference Table */}
+          <div className="glass rounded-2xl p-5">
+            <h2 className="text-sm font-bold text-white mb-1">📊 Strength Standards (for ~75kg athlete)</h2>
+            <p className="text-xs text-slate-500 mb-4">Estimated 1RM benchmarks — Novice / Intermediate / Advanced / Elite</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500 border-b border-white/10">
+                    <th className="text-left py-2 font-semibold">Exercise</th>
+                    <th className="py-2 font-semibold text-slate-600">Novice</th>
+                    <th className="py-2 font-semibold text-amber-700">Intermediate</th>
+                    <th className="py-2 font-semibold text-blue-400">Advanced</th>
+                    <th className="py-2 font-semibold text-violet-400">Elite</th>
+                    <th className="py-2 font-semibold text-yellow-400">Your PR</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {[
+                    { name: 'Bench Press',  standards: [60, 100, 140, 180] },
+                    { name: 'Squat',        standards: [80, 120, 165, 220] },
+                    { name: 'Deadlift',     standards: [100, 145, 195, 250] },
+                    { name: 'Overhead Press', standards: [40, 65, 90, 120] },
+                    { name: 'Barbell Row',  standards: [60, 95, 130, 170] },
+                  ].map((std) => {
+                    const myPR = prs.find((p) => p.exercise_name.toLowerCase().includes(std.name.toLowerCase().split(' ')[0]));
+                    const my1rm = myPR?.estimated_1rm ?? 0;
+                    const lvl = my1rm === 0 ? -1
+                      : my1rm >= std.standards[3] ? 3
+                      : my1rm >= std.standards[2] ? 2
+                      : my1rm >= std.standards[1] ? 1
+                      : my1rm >= std.standards[0] ? 0 : -1;
+                    const lvlColors = ['text-slate-400', 'text-amber-400', 'text-blue-400', 'text-violet-400'];
+                    const lvlLabels = ['Novice', 'Intermediate', 'Advanced', 'Elite'];
+                    return (
+                      <tr key={std.name} className="text-center">
+                        <td className="text-left py-2 text-slate-300 font-medium">{std.name}</td>
+                        {std.standards.map((s, i) => (
+                          <td key={i} className={`py-2 ${lvl === i ? 'font-black text-white' : 'text-slate-600'}`}>{s} kg</td>
+                        ))}
+                        <td className={`py-2 font-bold ${lvl >= 0 ? lvlColors[lvl] : 'text-slate-600'}`}>
+                          {my1rm > 0 ? `${my1rm.toFixed(0)} kg` : '—'}
+                          {lvl >= 0 && <span className="block text-[10px] font-normal opacity-70">{lvlLabels[lvl]}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

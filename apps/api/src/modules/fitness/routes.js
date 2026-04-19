@@ -258,3 +258,45 @@ fitnessRouter.get('/trainer/messages', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Workout Heatmap ─────────────────────────────────────────────────────────
+// Returns daily workout counts for the last 365 days (for calendar heatmap)
+fitnessRouter.get('/workouts/heatmap', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT
+         DATE(COALESCE(completed_at, started_at)) AS day,
+         COUNT(*) AS count
+       FROM workouts
+       WHERE user_id = $1
+         AND COALESCE(completed_at, started_at) >= NOW() - INTERVAL '365 days'
+       GROUP BY day
+       ORDER BY day ASC`,
+      [req.user.sub]
+    );
+    return res.json({ heatmap: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Exercise History (for progressive overload hints) ────────────────────────
+fitnessRouter.get('/exercises/:exerciseName/history', async (req, res, next) => {
+  try {
+    const { exerciseName } = req.params;
+    const result = await query(
+      `SELECT we.exercise_name, we.sets, we.reps, we.weight_kg, we.rest_seconds,
+              w.completed_at AS workout_date
+       FROM workout_exercises we
+       JOIN workouts w ON w.id = we.workout_id
+       WHERE w.user_id = $1
+         AND LOWER(we.exercise_name) = LOWER($2)
+       ORDER BY w.completed_at DESC NULLS LAST
+       LIMIT 20`,
+      [req.user.sub, exerciseName]
+    );
+    return res.json({ history: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});

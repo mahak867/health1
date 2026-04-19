@@ -218,3 +218,65 @@ function getWeekStart() {
   const mon = new Date(d.setDate(diff));
   return mon.toISOString().slice(0, 10);
 }
+
+// ─── Weekly Summary ───────────────────────────────────────────────────────────
+gamificationRouter.get('/weekly-summary', async (req, res, next) => {
+  try {
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Sunday
+    weekStart.setHours(0, 0, 0, 0);
+
+    const [workoutsRes, mealsRes, xpRes, activitiesRes] = await Promise.all([
+      query(
+        `SELECT COUNT(*) AS count,
+                COALESCE(SUM(calories_burned), 0)::int AS total_calories,
+                COALESCE(SUM(duration_seconds), 0)::int AS total_seconds
+         FROM workouts
+         WHERE user_id = $1 AND COALESCE(completed_at, started_at) >= $2`,
+        [req.user.sub, weekStart.toISOString()]
+      ),
+      query(
+        `SELECT COUNT(*) AS count,
+                COALESCE(SUM(calories), 0)::int AS total_calories,
+                COALESCE(SUM(protein_g), 0)::numeric AS total_protein
+         FROM nutrition_logs
+         WHERE user_id = $1 AND consumed_at >= $2`,
+        [req.user.sub, weekStart.toISOString()]
+      ),
+      query(
+        `SELECT COALESCE(SUM(xp), 0)::int AS total_xp
+         FROM user_xp
+         WHERE user_id = $1 AND created_at >= $2`,
+        [req.user.sub, weekStart.toISOString()]
+      ),
+      query(
+        `SELECT COUNT(*) AS count,
+                COALESCE(SUM(distance_km), 0)::numeric AS total_km
+         FROM activities
+         WHERE user_id = $1 AND started_at >= $2`,
+        [req.user.sub, weekStart.toISOString()]
+      ),
+    ]);
+
+    return res.json({
+      weekStart: weekStart.toISOString(),
+      workouts: {
+        count: Number(workoutsRes.rows[0].count),
+        caloriesBurned: workoutsRes.rows[0].total_calories,
+        totalSeconds: workoutsRes.rows[0].total_seconds,
+      },
+      meals: {
+        count: Number(mealsRes.rows[0].count),
+        totalCalories: mealsRes.rows[0].total_calories,
+        totalProteinG: Number(mealsRes.rows[0].total_protein),
+      },
+      activities: {
+        count: Number(activitiesRes.rows[0].count),
+        totalKm: Number(activitiesRes.rows[0].total_km),
+      },
+      xpGained: xpRes.rows[0].total_xp,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});

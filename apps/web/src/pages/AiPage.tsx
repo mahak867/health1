@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Card from '../components/Card';
 import Ring from '../components/Ring';
 import { api } from '../lib/api';
@@ -70,6 +70,38 @@ export default function AiPage() {
   const [vo2Result, setVo2Result] = useState<Vo2MaxResult | null>(null);
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
+  const [aiTab, setAiTab] = useState<'chat' | 'tools'>('chat');
+
+  // Chat state
+  interface ChatMessage { role: 'user' | 'ai'; text: string; }
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    { role: 'ai', text: "👋 Hi! I'm your AI Health Coach. Ask me anything — recovery readiness, nutrition advice, workout progress, or VO2Max estimation.\n\nTry: _\"Am I ready to train?\"_ or _\"How's my protein intake?\"_" }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
+
+  async function sendChat(e: React.FormEvent) {
+    e.preventDefault();
+    const msg = chatInput.trim();
+    if (!msg || chatLoading) return;
+    setChatInput('');
+    setChatMessages((prev) => [...prev, { role: 'user', text: msg }]);
+    setChatLoading(true);
+    try {
+      const res = await api.post<{ reply: string }>('/ai/chat', { message: msg });
+      setChatMessages((prev) => [...prev, { role: 'ai', text: res.reply }]);
+    } catch (_) {
+      setChatMessages((prev) => [...prev, { role: 'ai', text: "Sorry, I couldn't process that. Please try again." }]);
+    }
+    setChatLoading(false);
+  }
+
+  function sendQuickPrompt(prompt: string) {
+    setChatInput(prompt);
+  }
 
   async function runRecommendations(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading('rec');
@@ -110,9 +142,9 @@ export default function AiPage() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-black text-white">AI Health Engine</h1>
+        <h1 className="text-3xl font-black text-white">AI Health Engine 🤖</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Evidence-based analysis — ACWR injury risk, Epley 1RM, Uth VO₂Max, Morton protein, leucine threshold
+          Chat with your AI coach or use precision science tools
         </p>
       </div>
 
@@ -120,8 +152,82 @@ export default function AiPage() {
         <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm">{error}</div>
       )}
 
-      {/* ─── Input form ─────────────────────────────────────────────────────── */}
-      <form onSubmit={runRecommendations}>
+      {/* Tab switcher */}
+      <div className="flex gap-2">
+        {([['chat','💬 AI Chat'],['tools','🔬 Science Tools']] as const).map(([t, label]) => (
+          <button key={t} onClick={() => setAiTab(t)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${aiTab === t ? 'bg-violet-500/20 text-violet-200 border border-violet-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Chat Tab ─── */}
+      {aiTab === 'chat' && (
+        <div className="space-y-4">
+          {/* Quick prompts */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              'Am I ready to train today?',
+              "How's my protein intake?",
+              'How are my workouts going?',
+              "What's my VO2Max?",
+              'How much XP do I have?',
+            ].map((prompt) => (
+              <button key={prompt} onClick={() => sendQuickPrompt(prompt)}
+                className="text-xs px-3 py-1.5 rounded-full glass text-slate-400 hover:text-white hover:bg-white/10 transition-colors border border-white/10">
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          {/* Chat window */}
+          <div className="glass rounded-2xl flex flex-col" style={{ height: '420px' }}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === 'user'
+                      ? 'bg-violet-600/40 text-white rounded-br-sm'
+                      : 'bg-white/5 text-slate-200 rounded-bl-sm border border-white/10'
+                  }`}>
+                    {msg.role === 'ai' && <span className="text-xs text-violet-400 font-bold block mb-1">🤖 AI Coach</span>}
+                    {msg.text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/_(.*?)_/g, '$1')}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 text-slate-400 text-sm">
+                    <span className="animate-pulse">AI is thinking…</span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Input bar */}
+            <form onSubmit={sendChat} className="p-3 border-t border-white/10 flex gap-2">
+              <input
+                className="flex-1 rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+                placeholder="Ask your AI coach anything…"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                disabled={chatLoading}
+              />
+              <button type="submit" disabled={!chatInput.trim() || chatLoading}
+                className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Science Tools Tab ─── */}
+      {aiTab === 'tools' && (<>
+        <p className="text-xs text-slate-500">Evidence-based analysis — ACWR injury risk, Epley 1RM, Uth VO₂Max, Morton protein, leucine threshold</p>
+        <form onSubmit={runRecommendations}>
         <div className="grid gap-4 sm:grid-cols-3">
           {/* Recovery inputs */}
           <Card title="Recovery Signals" accent="violet">
@@ -304,6 +410,7 @@ export default function AiPage() {
           )}
         </form>
       </Card>
+      </>)}
     </div>
   );
 }

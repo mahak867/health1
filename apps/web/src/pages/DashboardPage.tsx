@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Ring from '../components/Ring';
+import WorkoutHeatmap from '../components/WorkoutHeatmap';
 import { api } from '../lib/api';
 import type { AuthUser } from '../lib/auth';
 
@@ -39,6 +40,9 @@ export default function DashboardPage({ user, onNavigate }: Props) {
   const [latestVital, setLatestVital] = useState<any>(null);
   const [xp, setXp] = useState<any>(null);
   const [challenges, setChallenges] = useState<any[]>([]);
+  const [heatmap, setHeatmap] = useState<Record<string, number>>({});
+  const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [waterToday, setWaterToday] = useState(0);
 
   useEffect(() => {
     api.get<{ profile: any }>('/health/profile').then((r) => setProfile(r.profile)).catch(() => {});
@@ -46,6 +50,13 @@ export default function DashboardPage({ user, onNavigate }: Props) {
     api.get<{ vitals: any[] }>('/health/vitals?limit=1').then((r) => setLatestVital(r.vitals[0] ?? null)).catch(() => {});
     api.get<any>('/gamification/xp').then(setXp).catch(() => {});
     api.get<{ challenges: any[] }>('/gamification/challenges').then((r) => setChallenges(r.challenges)).catch(() => {});
+    api.get<{ heatmap: { day: string; count: string }[] }>('/fitness/workouts/heatmap').then((r) => {
+      const map: Record<string, number> = {};
+      r.heatmap.forEach((row) => { map[row.day] = Number(row.count); });
+      setHeatmap(map);
+    }).catch(() => {});
+    api.get<any>('/gamification/weekly-summary').then(setWeeklySummary).catch(() => {});
+    api.get<{ totalMl: number }>('/health/water').then((r) => setWaterToday(r.totalMl)).catch(() => {});
   }, []);
 
   const quickActions = QUICK_ACTIONS[user.role] ?? QUICK_ACTIONS['user'];
@@ -174,6 +185,49 @@ export default function DashboardPage({ user, onNavigate }: Props) {
           </div>
         </div>
       )}
+
+      {/* Weekly Summary Widget */}
+      {weeklySummary && (
+        <div className="card-solid rounded-2xl p-5 border border-white/10">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+            <span className="inline-block w-3 h-[2px] bg-blue-500 rounded-full" />
+            This Week's Summary
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { icon: '🏋️', label: 'Workouts', value: weeklySummary.workouts.count, color: '#a855f7' },
+              { icon: '🔥', label: 'Cal Burned', value: `${weeklySummary.workouts.caloriesBurned?.toLocaleString() ?? 0}`, color: '#f97316' },
+              { icon: '🏃', label: 'Km Run', value: `${Number(weeklySummary.activities.totalKm).toFixed(1)}`, color: '#22c55e' },
+              { icon: '⚡', label: 'XP Gained', value: `+${weeklySummary.xpGained}`, color: '#facc15' },
+            ].map((s) => (
+              <div key={s.label} className="text-center p-3 glass rounded-xl">
+                <div className="text-2xl mb-1">{s.icon}</div>
+                <div className="text-xl font-black" style={{ color: s.color }}>{s.value}</div>
+                <div className="text-[11px] text-slate-500 font-medium mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Workout Heatmap Calendar */}
+      <div className="card-solid rounded-2xl p-5 border border-white/10">
+        <WorkoutHeatmap data={heatmap} weeks={16} />
+      </div>
+
+      {/* Water Intake Progress */}
+      <div className="card-solid rounded-2xl p-5 border border-white/10 cursor-pointer hover:border-cyan-500/30 transition-colors"
+        onClick={() => onNavigate('Meals')}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">💧 Hydration Today</p>
+          <span className="text-xs text-cyan-400 font-bold">{(waterToday / 1000).toFixed(2)} L</span>
+        </div>
+        <div className="h-2.5 rounded-full bg-white/5 overflow-hidden">
+          <div className="h-full rounded-full transition-all"
+            style={{ width: `${Math.min((waterToday / 2500) * 100, 100)}%`, background: 'linear-gradient(90deg,#06b6d4,#3b82f6)' }} />
+        </div>
+        <p className="text-[11px] text-slate-500 mt-1.5">{waterToday} ml / 2500 ml daily goal · tap Meals to log</p>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {/* Health Profile */}

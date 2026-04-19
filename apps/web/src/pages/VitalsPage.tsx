@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Card from '../components/Card';
 import Ring from '../components/Ring';
+import Sparkline from '../components/Sparkline';
 import { api } from '../lib/api';
 
 interface Vital {
@@ -31,11 +32,33 @@ export default function VitalsPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [weightLogs, setWeightLogs] = useState<any[]>([]);
+  const [weightForm, setWeightForm] = useState({ weightKg: '', bodyFatPct: '' });
+  const [savingWeight, setSavingWeight] = useState(false);
 
   function load() {
     api.get<{ vitals: Vital[] }>('/health/vitals').then((r) => setVitals(r.vitals));
   }
-  useEffect(() => { load(); }, []);
+  function loadWeight() {
+    api.get<{ logs: any[] }>('/health/weight').then((r) => setWeightLogs(r.logs)).catch(() => {});
+  }
+  useEffect(() => { load(); loadWeight(); }, []);
+
+  async function handleWeightLog(e: React.FormEvent) {
+    e.preventDefault();
+    if (!weightForm.weightKg) return;
+    setSavingWeight(true);
+    try {
+      await api.post('/health/weight', {
+        weightKg: Number(weightForm.weightKg),
+        ...(weightForm.bodyFatPct ? { bodyFatPct: Number(weightForm.bodyFatPct) } : {}),
+        loggedAt: new Date().toISOString(),
+      });
+      setWeightForm({ weightKg: '', bodyFatPct: '' });
+      loadWeight();
+    } catch (_) {}
+    setSavingWeight(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setSubmitting(true);
@@ -57,12 +80,18 @@ export default function VitalsPage() {
 
   const latest = vitals[0];
 
+  // Build sparkline data (oldest → newest)
+  const hrData    = [...vitals].reverse().map((v) => v.heart_rate).filter((n): n is number => n != null);
+  const sleepData = [...vitals].reverse().map((v) => v.sleep_hours).filter((n): n is number => n != null);
+  const spo2Data  = [...vitals].reverse().map((v) => v.spo2).filter((n): n is number => n != null);
+  const weightData = [...weightLogs].reverse().map((l) => Number(l.weight_kg));
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-black text-white">Vital Signs</h1>
-        <p className="text-slate-500 text-sm mt-1">Track your body's key health metrics</p>
+        <h1 className="text-3xl font-black text-white">Vital Signs 💓</h1>
+        <p className="text-slate-500 text-sm mt-1">Track your body's key health metrics and trends</p>
       </div>
 
       {/* Live metric rings (latest reading) */}
@@ -97,6 +126,92 @@ export default function VitalsPage() {
           </div>
         </div>
       )}
+
+      {/* ─── Trend Charts ─── */}
+      {(hrData.length >= 2 || sleepData.length >= 2 || spo2Data.length >= 2) && (
+        <div className="glass rounded-2xl p-5 space-y-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">📈 Trend Charts</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {hrData.length >= 2 && (
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-rose-300">💓 Heart Rate</span>
+                  <span className="text-xs text-slate-500">{hrData[hrData.length - 1]} bpm</span>
+                </div>
+                <Sparkline data={hrData} color="#e11d48" height={48} />
+              </div>
+            )}
+            {sleepData.length >= 2 && (
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-indigo-300">🌙 Sleep</span>
+                  <span className="text-xs text-slate-500">{sleepData[sleepData.length - 1]}h</span>
+                </div>
+                <Sparkline data={sleepData} color="#6366f1" height={48} />
+              </div>
+            )}
+            {spo2Data.length >= 2 && (
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-blue-300">🫁 SpO2</span>
+                  <span className="text-xs text-slate-500">{spo2Data[spo2Data.length - 1]}%</span>
+                </div>
+                <Sparkline data={spo2Data} color="#2563eb" height={48} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Body Weight Tracker ─── */}
+      <div className="glass rounded-2xl p-5 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">⚖️ Body Weight Tracker</p>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <form onSubmit={handleWeightLog} className="space-y-3">
+            <div className="flex gap-2">
+              <input type="number" step="0.1" min="20" max="700"
+                className="flex-1 rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                placeholder="Weight (kg)" value={weightForm.weightKg}
+                onChange={(e) => setWeightForm((f) => ({ ...f, weightKg: e.target.value }))} required />
+              <input type="number" step="0.1" min="0" max="100"
+                className="w-24 rounded-xl glass px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
+                placeholder="BF%" value={weightForm.bodyFatPct}
+                onChange={(e) => setWeightForm((f) => ({ ...f, bodyFatPct: e.target.value }))} />
+            </div>
+            <button type="submit" disabled={savingWeight || !weightForm.weightKg}
+              className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+              {savingWeight ? 'Saving…' : '+ Log Weight'}
+            </button>
+          </form>
+
+          {weightData.length >= 2 ? (
+            <div className="min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-emerald-300">Weight Trend</span>
+                <span className="text-xs text-slate-500">{weightData[weightData.length - 1].toFixed(1)} kg</span>
+              </div>
+              <Sparkline data={weightData} color="#22c55e" height={48} />
+              <p className="text-[10px] text-slate-600 mt-1">{weightLogs.length} readings</p>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-600 self-center">Log at least 2 weights to see trend.</p>
+          )}
+        </div>
+
+        {weightLogs.length > 0 && (
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {weightLogs.slice(0, 10).map((log) => (
+              <div key={log.id} className="flex justify-between items-center text-xs py-1.5 border-b border-white/5 last:border-0">
+                <span className="text-slate-500">{new Date(log.logged_at).toLocaleDateString()}</span>
+                <span className="text-emerald-300 font-bold">
+                  {Number(log.weight_kg).toFixed(1)} kg
+                  {log.body_fat_pct != null && <span className="text-slate-500 font-normal"> · {Number(log.body_fat_pct).toFixed(1)}% BF</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Log form */}
