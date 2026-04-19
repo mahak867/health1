@@ -17,9 +17,20 @@ const TIER_FILL: Record<string, string> = {
 
 export const TIER_ORDER = ['wood', 'bronze', 'silver', 'gold', 'platinum', 'diamond', 'champion', 'titan', 'olympian'];
 
-const UNRANKED_FILL   = '#1e293b';
-const UNRANKED_STROKE = '#334155';
-const HOVER_FILL      = '#263447';
+/* Default tint colour per muscle group (shown even when unranked) */
+const MUSCLE_TINT: Record<string, string> = {
+  chest:     '#c0394a',
+  back:      '#2563eb',
+  shoulders: '#b45309',
+  arms:      '#7c3aed',
+  core:      '#047857',
+  legs:      '#b45309',
+  cardio:    '#0e7490',
+};
+
+const UNRANKED_FILL   = '#1a2744';
+const UNRANKED_STROKE = '#2d4060';
+const HOVER_FILL      = '#1e3a6e';
 
 /* ------------------------------------------------------------------ */
 
@@ -36,24 +47,38 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
   function fillFor(g: string) {
     const tier = tierMap[g];
     if (tier) return TIER_FILL[tier] ?? UNRANKED_FILL;
-    return hovered === g ? HOVER_FILL : UNRANKED_FILL;
+    if (selected === g || hovered === g) return HOVER_FILL;
+    return MUSCLE_TINT[g] ?? UNRANKED_FILL;
   }
 
   function strokeFor(g: string) {
     if (selected === g) return '#ffffff';
     const tier = tierMap[g];
-    return tier ? TIER_FILL[tier] : UNRANKED_STROKE;
+    if (tier) return TIER_FILL[tier];
+    return MUSCLE_TINT[g] ?? UNRANKED_STROKE;
   }
 
   function opacityFor(g: string) {
     if (selected === g) return 1;
-    if (tierMap[g]) return 0.88;
-    return hovered === g ? 0.6 : 0.4;
+    if (tierMap[g]) return 0.92;
+    return hovered === g ? 0.75 : 0.45;
+  }
+
+  function filterFor(g: string): string | undefined {
+    if (selected === g) {
+      const tier = tierMap[g];
+      const col  = tier ? TIER_FILL[tier] : (MUSCLE_TINT[g] ?? '#ffffff');
+      return `drop-shadow(0 0 8px ${col}) drop-shadow(0 0 3px ${col})`;
+    }
+    if (tierMap[g]) {
+      return `drop-shadow(0 0 3px ${TIER_FILL[tierMap[g]]})`;
+    }
+    return undefined;
   }
 
   function gp(g: string) {
     return {
-      style:        { cursor: 'pointer' } as React.CSSProperties,
+      style:        { cursor: 'pointer', filter: filterFor(g) } as React.CSSProperties,
       onClick:      () => onSelect?.(g),
       onMouseEnter: () => setHovered(g),
       onMouseLeave: () => setHovered(null),
@@ -64,7 +89,7 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
     return {
       fill:        fillFor(g),
       stroke:      strokeFor(g),
-      strokeWidth: selected === g ? 2 : tierMap[g] ? 1 : 0.5,
+      strokeWidth: selected === g ? 2.5 : tierMap[g] ? 1.5 : 1,
       opacity:     opacityFor(g),
       transition:  'fill 0.22s, opacity 0.22s, stroke-width 0.15s',
     };
@@ -96,8 +121,8 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
       <div className="relative">
         <svg
           viewBox="0 0 200 440"
-          width="170"
-          height="374"
+          width="200"
+          height="440"
           xmlns="http://www.w3.org/2000/svg"
           aria-label="Human body muscle map"
         >
@@ -115,22 +140,22 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
                L178 182 L182 182 C186 182 188 178 188 174 L184 118
                C184 112 178 100 170 90 C160 78 146 72 136 72
                L130 64 C134 60 142 50 142 36 C142 22 132 8 114 8 Z"
-            fill="#111827"
-            stroke="#1e293b"
-            strokeWidth="1"
+            fill="#0f1624"
+            stroke="#243048"
+            strokeWidth="1.5"
           />
 
           {/* Head */}
           <ellipse cx="100" cy="34" rx="28" ry="30"
-            fill="#1a2235" stroke="#334155" strokeWidth="1"/>
+            fill="#162030" stroke="#2d4060" strokeWidth="1.5"/>
           {/* Face features */}
-          <ellipse cx="92" cy="32" rx="4" ry="5" fill="#0f172a" opacity="0.6"/>
-          <ellipse cx="108" cy="32" rx="4" ry="5" fill="#0f172a" opacity="0.6"/>
-          <path d="M93 44 Q100 48 107 44" fill="none" stroke="#334155" strokeWidth="1.5" strokeLinecap="round"/>
+          <ellipse cx="92" cy="32" rx="4" ry="5" fill="#0a1220" opacity="0.7"/>
+          <ellipse cx="108" cy="32" rx="4" ry="5" fill="#0a1220" opacity="0.7"/>
+          <path d="M93 44 Q100 48 107 44" fill="none" stroke="#2d4060" strokeWidth="1.5" strokeLinecap="round"/>
 
           {/* Neck */}
           <rect x="91" y="62" width="18" height="14" rx="4"
-            fill="#1a2235" stroke="#334155" strokeWidth="0.5"/>
+            fill="#162030" stroke="#2d4060" strokeWidth="1"/>
 
           {/* ── FRONT VIEW ── */}
           {view === 'front' && (<>
@@ -311,27 +336,18 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
         onClick={() => onSelect?.('cardio')}
         onMouseEnter={() => setHovered('cardio')}
         onMouseLeave={() => setHovered(null)}
+        style={{ filter: filterFor('cardio') }}
         className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-semibold transition-all mt-1 ${
           selected === 'cardio'
-            ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400'
+            ? 'bg-cyan-500/25 text-cyan-200 ring-2 ring-cyan-400'
             : tierMap['cardio']
-              ? 'bg-cyan-500/10 text-cyan-400 ring-1 ring-cyan-500/30'
+              ? 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/40'
               : 'glass text-slate-400 hover:text-white'
         }`}
       >
         <span>🫀</span>
         <span>Cardio{tierMap['cardio'] ? ` — ${tierMap['cardio']}` : ''}</span>
       </button>
-
-      {/* Tier colour legend */}
-      <div className="flex flex-wrap gap-x-2 gap-y-1 justify-center pt-1">
-        {TIER_ORDER.map(tier => (
-          <div key={tier} className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: TIER_FILL[tier] }}/>
-            <span className="text-[9px] text-slate-500 capitalize">{tier}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
