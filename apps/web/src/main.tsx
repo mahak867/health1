@@ -11,6 +11,7 @@ import MealsPage from './pages/MealsPage';
 import TelemedicinePage from './pages/TelemedicinePage';
 import NotificationsPage from './pages/NotificationsPage';
 import ProfilePage from './pages/ProfilePage';
+import RankingPage from './pages/RankingPage';
 import Navbar from './components/Navbar';
 
 const PAGES: Record<string, React.FC<any>> = {
@@ -20,7 +21,8 @@ const PAGES: Record<string, React.FC<any>> = {
   Meals: MealsPage,
   Telemedicine: TelemedicinePage,
   Notifications: NotificationsPage,
-  Profile: ProfilePage
+  Profile: ProfilePage,
+  Ranking: RankingPage,
 };
 
 function App() {

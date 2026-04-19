@@ -13,6 +13,7 @@ const LINKS: { label: string; icon: string }[] = [
   { label: 'Vitals',         icon: '💓' },
   { label: 'Workouts',       icon: '🏋️' },
   { label: 'Meals',          icon: '🥗' },
+  { label: 'Ranking',        icon: '🏆' },
   { label: 'Telemedicine',   icon: '🩺' },
   { label: 'Notifications',  icon: '🔔' },
   { label: 'Profile',        icon: '👤' },
