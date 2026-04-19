@@ -11,6 +11,7 @@ interface RingProps {
   label?: string;
   sublabel?: string;
   children?: React.ReactNode;
+  onClick?: () => void;
 }
 
 export default function Ring({
@@ -21,14 +22,18 @@ export default function Ring({
   strokeWidth = 9,
   label,
   sublabel,
-  children
+  children,
+  onClick,
 }: RingProps) {
   const r = (size - strokeWidth) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - Math.min(Math.max(value, 0), 100) / 100);
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div
+      className={`flex flex-col items-center gap-1 ${onClick ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
+      onClick={onClick}
+    >
       <div className="relative inline-flex items-center justify-center">
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={strokeWidth} />

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Ring from '../components/Ring';
 import WorkoutHeatmap from '../components/WorkoutHeatmap';
 import { api } from '../lib/api';
+import { subscribe } from '../lib/ws';
 import type { AuthUser } from '../lib/auth';
 
 interface Props { user: AuthUser; onNavigate: (p: string) => void; }
@@ -43,31 +44,60 @@ export default function DashboardPage({ user, onNavigate }: Props) {
   const [heatmap, setHeatmap] = useState<Record<string, number>>({});
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
   const [waterToday, setWaterToday] = useState(0);
+  const [nutritionToday, setNutritionToday] = useState<any>(null);
 
-  useEffect(() => {
-    api.get<{ profile: any }>('/health/profile').then((r) => setProfile(r.profile)).catch(() => {});
-    api.get<{ mode: any }>('/modes/my').then((r) => setMode(r.mode)).catch(() => {});
+  function loadNutrition() {
+    api.get<any>('/nutrition/daily-summary').then(setNutritionToday).catch(() => {});
+  }
+  function loadWater() {
+    api.get<{ totalMl: number }>('/health/water').then((r) => setWaterToday(r.totalMl)).catch(() => {});
+  }
+  function loadVitals() {
     api.get<{ vitals: any[] }>('/health/vitals?limit=1').then((r) => setLatestVital(r.vitals[0] ?? null)).catch(() => {});
-    api.get<any>('/gamification/xp').then(setXp).catch(() => {});
-    api.get<{ challenges: any[] }>('/gamification/challenges').then((r) => setChallenges(r.challenges)).catch(() => {});
+  }
+  function loadHeatmap() {
     api.get<{ heatmap: { day: string; count: string }[] }>('/fitness/workouts/heatmap').then((r) => {
       const map: Record<string, number> = {};
       r.heatmap.forEach((row) => { map[row.day] = Number(row.count); });
       setHeatmap(map);
     }).catch(() => {});
+  }
+
+  // Initial data load
+  useEffect(() => {
+    api.get<{ profile: any }>('/health/profile').then((r) => setProfile(r.profile)).catch(() => {});
+    api.get<{ mode: any }>('/modes/my').then((r) => setMode(r.mode)).catch(() => {});
+    loadVitals();
+    api.get<any>('/gamification/xp').then(setXp).catch(() => {});
+    api.get<{ challenges: any[] }>('/gamification/challenges').then((r) => setChallenges(r.challenges)).catch(() => {});
+    loadHeatmap();
     api.get<any>('/gamification/weekly-summary').then(setWeeklySummary).catch(() => {});
-    api.get<{ totalMl: number }>('/health/water').then((r) => setWaterToday(r.totalMl)).catch(() => {});
+    loadWater();
+    loadNutrition();
+  }, []);
+
+  // Live updates via WebSocket — keeps all dashboard cards fresh in real time
+  useEffect(() => {
+    const unsubs = [
+      subscribe('nutrition', () => { loadNutrition(); loadWater(); }),
+      subscribe('fitness',   () => { loadHeatmap(); api.get<any>('/gamification/weekly-summary').then(setWeeklySummary).catch(() => {}); }),
+      subscribe('vitals',    () => { loadVitals(); }),
+    ];
+    return () => unsubs.forEach((fn) => fn());
   }, []);
 
   const quickActions = QUICK_ACTIONS[user.role] ?? QUICK_ACTIONS['user'];
 
   // Compute ring percentages from vitals/mode data
-  const hrPct = latestVital?.heart_rate ? Math.min((latestVital.heart_rate / 200) * 100, 100) : 0;
-  const spo2Pct = latestVital?.spo2 ?? 0;
+  const hrPct    = latestVital?.heart_rate ? Math.min((latestVital.heart_rate / 200) * 100, 100) : 0;
+  const spo2Pct  = latestVital?.spo2 ?? 0;
   const sleepPct = latestVital?.sleep_hours ? Math.min((latestVital.sleep_hours / 9) * 100, 100) : 0;
-  const calTarget = mode?.targets?.targetCalories ?? 2000;
-  const calBurned = latestVital?.calories_burned ?? 0;
-  const calPct = Math.min((calBurned / calTarget) * 100, 100);
+  const calTarget  = mode?.targets?.targetCalories ?? 2000;
+  const calBurned  = latestVital?.calories_burned ?? 0;
+  const calPct     = Math.min((calBurned / calTarget) * 100, 100);
+  // Nutrition ring: calories consumed today vs target
+  const calEaten   = Number(nutritionToday?.nutrition?.total_calories ?? 0);
+  const calEatenPct = Math.min((calEaten / calTarget) * 100, 100);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
@@ -96,8 +126,13 @@ export default function DashboardPage({ user, onNavigate }: Props) {
         </p>
         <div className="flex flex-wrap justify-around gap-6">
           <Ring value={calPct} color="#ff6200" trackColor="#2a1500" size={96} strokeWidth={9}
-            label={`${calBurned} kcal`} sublabel="Calories burned">
+            label={`${calBurned} kcal`} sublabel="Cal burned">
             <span className="text-2xl">🔥</span>
+          </Ring>
+          <Ring value={calEatenPct} color="#22c55e" trackColor="#0a2010" size={96} strokeWidth={9}
+            label={`${calEaten} kcal`} sublabel="Cal eaten"
+            onClick={() => onNavigate('Meals')}>
+            <span className="text-2xl">🥗</span>
           </Ring>
           <Ring value={hrPct} color="#e11d48" trackColor="#2a0012" size={96} strokeWidth={9}
             label={latestVital?.heart_rate ? `${latestVital.heart_rate} bpm` : '—'} sublabel="Heart rate">
