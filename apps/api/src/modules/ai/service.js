@@ -13,3 +13,39 @@ export function detectRecoveryNeed({ sleepHours, restingHeartRateDelta, workoutL
     ].filter(Boolean)
   };
 }
+
+export function nutritionInsight({ calorieDeficit, proteinG, weightKg }) {
+  const requiredProtein = weightKg * 1.8;
+  const proteinAdequate = proteinG >= requiredProtein;
+  const recommendations = [];
+
+  if (!proteinAdequate) {
+    recommendations.push(`Increase protein by ${Math.ceil(requiredProtein - proteinG)}g to support muscle retention.`);
+  }
+
+  if (calorieDeficit > 600) {
+    recommendations.push('Large calorie deficit detected — consider a partial diet break.');
+  }
+
+  return {
+    proteinAdequate,
+    recommendations
+  };
+}
+
+export function fitnessProgressInsight({ weeklyVolumeChange, injuryRisk }) {
+  const recommendations = [];
+
+  if (weeklyVolumeChange > 0.15) {
+    recommendations.push('Volume increased >15% this week — increase by max 10% per week to prevent injury.');
+  }
+
+  if (injuryRisk > 0.7) {
+    recommendations.push('High injury risk signal detected — consider a deload or technique review.');
+  }
+
+  return {
+    overloadRisk: weeklyVolumeChange > 0.15,
+    recommendations
+  };
+}

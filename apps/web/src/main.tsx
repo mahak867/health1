@@ -1,27 +1,52 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import { getUser, clearAuth, type AuthUser } from './lib/auth';
+import { api } from './lib/api';
+import AuthPage from './pages/AuthPage';
+import DashboardPage from './pages/DashboardPage';
+import VitalsPage from './pages/VitalsPage';
+import WorkoutsPage from './pages/WorkoutsPage';
+import MealsPage from './pages/MealsPage';
+import TelemedicinePage from './pages/TelemedicinePage';
+import NotificationsPage from './pages/NotificationsPage';
+import ProfilePage from './pages/ProfilePage';
+import Navbar from './components/Navbar';
 
-const cards = [
-  'Patient Dashboard',
-  'Doctor Dashboard',
-  'Trainer Dashboard',
-  'Nutritionist Dashboard'
-];
+const PAGES: Record<string, React.FC<any>> = {
+  Dashboard: DashboardPage,
+  Vitals: VitalsPage,
+  Workouts: WorkoutsPage,
+  Meals: MealsPage,
+  Telemedicine: TelemedicinePage,
+  Notifications: NotificationsPage,
+  Profile: ProfilePage
+};
 
 function App() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [page, setPage] = useState('Dashboard');
+
+  useEffect(() => { setUser(getUser()); }, []);
+
+  function handleAuth() { setUser(getUser()); setPage('Dashboard'); }
+
+  function handleLogout() {
+    const token = localStorage.getItem('refreshToken');
+    if (token) api.post('/auth/logout', { refreshToken: token }).catch(() => {});
+    clearAuth();
+    setUser(null);
+  }
+
+  if (!user) return <AuthPage onAuth={handleAuth} />;
+
+  const PageComponent = PAGES[page] ?? DashboardPage;
+
   return (
-    <main className="min-h-screen bg-slate-950 p-6 text-slate-100">
-      <h1 className="mb-6 text-3xl font-bold">HealthSphere Web</h1>
-      <section className="grid gap-4 md:grid-cols-2">
-        {cards.map((card) => (
-          <article key={card} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-            <h2 className="text-lg font-semibold">{card}</h2>
-            <p className="mt-2 text-sm text-slate-400">Role-specific real-time module widgets scaffold.</p>
-          </article>
-        ))}
-      </section>
-    </main>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <Navbar user={user} page={page} onNavigate={setPage} onLogout={handleLogout} />
+      <PageComponent user={user} onNavigate={setPage} />
+    </div>
   );
 }
 
