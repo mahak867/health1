@@ -31,19 +31,6 @@ const TIER_STYLES: Record<string, { color: string; glow: string; badge: string; 
   olympian: { color: '#F97316', glow: '#F9731633', badge: 'bg-orange-500/20 text-orange-300', bg: 'from-orange-600/30 to-orange-900/60' },
 };
 
-/* Tier icons rendered as inline SVG hex badges */
-const TIER_ICONS: Record<string, React.ReactNode> = {
-  wood:     <TierIcon color="#8B5E3C" label="W" />,
-  bronze:   <TierIcon color="#CD7F32" label="B" />,
-  silver:   <TierIcon color="#94A3B8" label="S" />,
-  gold:     <TierIcon color="#F59E0B" label="G" />,
-  platinum: <TierIcon color="#22C55E" label="P" />,
-  diamond:  <TierIcon color="#38BDF8" label="D" />,
-  champion: <TierIcon color="#A855F7" label="C" />,
-  titan:    <TierIcon color="#EF4444" label="T" />,
-  olympian: <TierIcon color="#F97316" label="O" />,
-};
-
 function TierIcon({ color, label }: { color: string; label: string }) {
   return (
     <svg viewBox="0 0 40 46" width="36" height="42">
@@ -60,6 +47,19 @@ function TierIcon({ color, label }: { color: string; label: string }) {
     </svg>
   );
 }
+
+/* Tier icons rendered as inline SVG hex badges */
+const TIER_ICONS: Record<string, React.ReactNode> = {
+  wood:     <TierIcon color="#8B5E3C" label="W" />,
+  bronze:   <TierIcon color="#CD7F32" label="B" />,
+  silver:   <TierIcon color="#94A3B8" label="S" />,
+  gold:     <TierIcon color="#F59E0B" label="G" />,
+  platinum: <TierIcon color="#22C55E" label="P" />,
+  diamond:  <TierIcon color="#38BDF8" label="D" />,
+  champion: <TierIcon color="#A855F7" label="C" />,
+  titan:    <TierIcon color="#EF4444" label="T" />,
+  olympian: <TierIcon color="#F97316" label="O" />,
+};
 
 const TIER_EMOJI: Record<string, string> = {
   wood: '🪵', bronze: '🥉', silver: '🥈', gold: '🥇',
