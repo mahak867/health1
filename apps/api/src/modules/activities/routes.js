@@ -26,7 +26,25 @@ activitiesRouter.get('/', async (req, res, next) => {
       'SELECT * FROM activities WHERE user_id = $1 ORDER BY completed_at DESC LIMIT 100',
       [req.user.sub]
     );
-    return res.json({ activities: result.rows });
+    // Parse route_geojson → route_points array for web minimap rendering
+    const activities = result.rows.map((row) => {
+      let routePoints = null;
+      if (row.route_geojson) {
+        try {
+          const geo = typeof row.route_geojson === 'string'
+            ? JSON.parse(row.route_geojson)
+            : row.route_geojson;
+          // Support both GeoJSON LineString and our custom [{lat,lon}] format
+          if (geo.type === 'LineString' && Array.isArray(geo.coordinates)) {
+            routePoints = geo.coordinates.map(([lon, lat]) => ({ lat, lon }));
+          } else if (Array.isArray(geo)) {
+            routePoints = geo.filter((p) => p.lat != null && p.lon != null);
+          }
+        } catch (_) {}
+      }
+      return { ...row, route_points: routePoints };
+    });
+    return res.json({ activities });
   } catch (error) {
     return next(error);
   }

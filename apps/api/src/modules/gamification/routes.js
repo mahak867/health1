@@ -275,6 +275,7 @@ gamificationRouter.get('/weekly-summary', async (req, res, next) => {
         totalKm: Number(activitiesRes.rows[0].total_km),
       },
       xpGained: xpRes.rows[0].total_xp,
+      currentStreak: await computeWorkoutStreak(req.user.sub),
     });
   } catch (error) {
     return next(error);

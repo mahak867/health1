@@ -234,6 +234,7 @@ export default function DashboardPage({ user, onNavigate }: Props) {
               { icon: '🔥', label: 'Cal Burned', value: `${weeklySummary.workouts.caloriesBurned?.toLocaleString() ?? 0}`, color: '#f97316' },
               { icon: '🏃', label: 'Km Run', value: `${Number(weeklySummary.activities.totalKm).toFixed(1)}`, color: '#22c55e' },
               { icon: '⚡', label: 'XP Gained', value: `+${weeklySummary.xpGained}`, color: '#facc15' },
+              { icon: '🔥', label: 'Day Streak', value: weeklySummary.currentStreak ?? 0, color: '#fb923c' },
             ].map((s) => (
               <div key={s.label} className="text-center p-3 glass rounded-xl">
                 <div className="text-2xl mb-1">{s.icon}</div>

@@ -29,6 +29,8 @@ dependencies:
   health: ^11.0.0
   # Step counting via hardware pedometer sensor
   pedometer: ^4.0.3
+  # Local push notifications (medication, water, workout reminders)
+  flutter_local_notifications: ^18.0.0
 
 dev_dependencies:
   flutter_test:

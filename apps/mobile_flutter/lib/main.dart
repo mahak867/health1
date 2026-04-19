@@ -10,6 +10,8 @@ import 'services/widget_service.dart';
 import 'services/local_db.dart';
 import 'services/health_sync.dart';
 import 'services/pedometer_service.dart';
+import 'services/notification_service.dart';
+import 'services/api_sync.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,12 +21,24 @@ Future<void> main() async {
     WidgetService.init(),
     LocalDb.db,                  // opens / migrates the SQLite database
     PedometerService.instance.init(),
+    NotificationService.init(),
   ]);
 
   // Background: request HealthKit / Health Connect permissions and pull data.
   // This is fire-and-forget so it doesn't block app startup.
   HealthSyncService.requestPermissions().then((_) =>
       HealthSyncService.pullAndCache());
+
+  // Push any unsynced local records to the API.
+  ApiSyncService.sync();
+
+  // Schedule default water + workout reminders (user can adjust in Profile).
+  NotificationService.requestPermission().then((granted) {
+    if (granted) {
+      NotificationService.scheduleHourlyWater();
+      NotificationService.scheduleWorkoutReminder();
+    }
+  });
 
   runApp(const HealthSphereApp());
 }
