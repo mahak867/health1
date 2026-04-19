@@ -120,42 +120,41 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
       {/* SVG body */}
       <div className="relative">
         <svg
-          viewBox="0 0 200 440"
-          width="200"
-          height="440"
+          viewBox="0 0 200 420"
+          width="185"
+          height="388"
           xmlns="http://www.w3.org/2000/svg"
           aria-label="Human body muscle map"
         >
           {/* ── Body outline (silhouette) — wider, more muscular ── */}
           <path
-            d="M100 6 C78 6 64 20 64 36 C64 52 74 63 80 67
-               L68 76 C52 76 32 84 16 100 C4 114 2 128 2 136
-               L0 198 C0 202 4 206 8 206 L14 206 L14 244
-               L4 244 L2 366 C2 370 6 374 10 374 L20 374
-               L20 424 C20 434 30 442 42 442 L66 442 C76 442 82 432 82 424
-               L82 378 L90 378 L90 442 C90 448 96 452 102 452
-               L118 452 C124 452 130 448 130 442 L130 378 L142 378
-               L142 424 C142 432 148 442 158 442 L180 442 C192 442 180 434 180 424
-               L180 374 L190 374 C194 374 198 370 198 366 L196 244 L186 244
-               L186 206 L192 206 C196 206 200 202 200 198 L198 136
-               C198 128 194 114 184 100 C168 84 148 76 132 76
-               L120 67 C126 63 136 52 136 36 C136 20 122 6 100 6 Z"
+            d="M100 6 C78 6 64 20 64 34 C64 50 74 61 80 65
+               L68 74 C52 74 32 82 16 98 C4 112 2 126 2 134
+               L0 196 C0 200 4 204 8 204 L14 204 L14 242
+               L4 242 L2 350 C2 354 6 358 10 358 L20 358
+               L20 400 C20 410 30 418 42 418 L66 418 C76 418 82 410 82 402
+               L82 360 L90 360 L90 418 L110 418 L110 360 L118 360
+               L118 402 C118 410 124 418 136 418 L158 418 C170 418 180 410 180 400
+               L180 358 L190 358 C194 358 198 354 198 350 L196 242 L186 242
+               L186 204 L192 204 C196 204 200 200 200 196 L198 134
+               C198 126 194 112 184 98 C168 82 148 74 132 74
+               L120 65 C126 61 136 50 136 34 C136 20 122 6 100 6 Z"
             fill="#0a1220"
             stroke="#1e3050"
             strokeWidth="1.5"
           />
 
           {/* Head */}
-          <ellipse cx="100" cy="36" rx="28" ry="30"
+          <ellipse cx="100" cy="34" rx="28" ry="28"
             fill="#131f35" stroke="#1e3050" strokeWidth="1.5"/>
           {/* Eyes */}
-          <ellipse cx="91" cy="33" rx="4" ry="5" fill="#060d1a" opacity="0.8"/>
-          <ellipse cx="109" cy="33" rx="4" ry="5" fill="#060d1a" opacity="0.8"/>
+          <ellipse cx="91" cy="31" rx="4" ry="5" fill="#060d1a" opacity="0.8"/>
+          <ellipse cx="109" cy="31" rx="4" ry="5" fill="#060d1a" opacity="0.8"/>
           {/* Mouth */}
-          <path d="M93 46 Q100 50 107 46" fill="none" stroke="#1e3050" strokeWidth="1.5" strokeLinecap="round"/>
+          <path d="M93 44 Q100 48 107 44" fill="none" stroke="#1e3050" strokeWidth="1.5" strokeLinecap="round"/>
 
           {/* Neck */}
-          <rect x="89" y="65" width="22" height="14" rx="5"
+          <rect x="89" y="61" width="22" height="14" rx="5"
             fill="#131f35" stroke="#1e3050" strokeWidth="1"/>
 
           {/* ── FRONT VIEW ── */}
@@ -163,71 +162,68 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
 
             {/* RENDER ORDER: chest → core → hip → shoulders (overlap chest) → arms → legs */}
 
-            {/* Chest / Pectorals — rendered first so shoulders overlap its edges */}
+            {/* Chest / Pectorals */}
             <g {...gp('chest')}>
-              <path d="M58 74 Q100 64 142 74 L138 128 Q118 142 100 144 Q82 142 62 128 Z"
+              <path d="M58 72 Q100 62 142 72 L138 122 Q118 136 100 138 Q82 136 62 122 Z"
                 style={sp('chest')}/>
-              <line x1="100" y1="70" x2="100" y2="144" stroke={strokeFor('chest')} strokeWidth="1"
+              <line x1="100" y1="68" x2="100" y2="138" stroke={strokeFor('chest')} strokeWidth="1"
                 opacity={opacityFor('chest') * 0.4} style={{pointerEvents:'none'}}/>
-              <path d="M64 120 Q82 132 100 134 Q118 132 136 120"
+              <path d="M64 114 Q82 126 100 128 Q118 126 136 114"
                 fill="none" stroke={strokeFor('chest')} strokeWidth="0.9"
                 opacity={opacityFor('chest') * 0.4} style={{pointerEvents:'none'}}/>
             </g>
 
-            {/* Core / Abs — connects directly to chest bottom */}
+            {/* Core / Abs */}
             <g {...gp('core')}>
-              <path d="M62 142 Q100 148 138 142 L136 210 Q100 216 64 210 Z"
+              <path d="M62 136 Q100 142 138 136 L136 198 Q100 204 64 198 Z"
                 style={sp('core')}/>
-              {[162, 178, 194].map(y => (
+              {[154, 170, 185].map(y => (
                 <line key={y} x1="68" y1={y} x2="132" y2={y}
                   stroke={strokeFor('core')} strokeWidth="0.8"
                   opacity={opacityFor('core') * 0.35} style={{pointerEvents:'none'}}/>
               ))}
-              <line x1="100" y1="144" x2="100" y2="210"
+              <line x1="100" y1="138" x2="100" y2="198"
                 stroke={strokeFor('core')} strokeWidth="0.8"
                 opacity={opacityFor('core') * 0.35} style={{pointerEvents:'none'}}/>
             </g>
 
             {/* Hip / Pelvis */}
-            <path d="M60 210 Q100 218 140 210 L142 234 Q100 240 58 234 Z"
+            <path d="M60 198 Q100 206 140 198 L142 220 Q100 226 58 220 Z"
               fill="#0a1220" stroke="#1a2a40" strokeWidth="0.8"/>
 
             {/* Shoulders — rendered AFTER chest so they overlap/cover the junction */}
             <g {...gp('shoulders')}>
-              <ellipse cx="34" cy="100" rx="34" ry="26" style={sp('shoulders')}/>
-              <ellipse cx="166" cy="100" rx="34" ry="26" style={sp('shoulders')}/>
-              <path d="M16 96 Q34 88 52 96" fill="none" stroke={strokeFor('shoulders')} strokeWidth="1" opacity={opacityFor('shoulders') * 0.5} style={{pointerEvents:'none'}}/>
-              <path d="M148 96 Q166 88 184 96" fill="none" stroke={strokeFor('shoulders')} strokeWidth="1" opacity={opacityFor('shoulders') * 0.5} style={{pointerEvents:'none'}}/>
+              <ellipse cx="34" cy="96" rx="34" ry="26" style={sp('shoulders')}/>
+              <ellipse cx="166" cy="96" rx="34" ry="26" style={sp('shoulders')}/>
+              <path d="M16 92 Q34 84 52 92" fill="none" stroke={strokeFor('shoulders')} strokeWidth="1" opacity={opacityFor('shoulders') * 0.5} style={{pointerEvents:'none'}}/>
+              <path d="M148 92 Q166 84 184 92" fill="none" stroke={strokeFor('shoulders')} strokeWidth="1" opacity={opacityFor('shoulders') * 0.5} style={{pointerEvents:'none'}}/>
             </g>
 
-            {/* Arms / Biceps + Forearms — on top of shoulders */}
+            {/* Arms / Biceps + Forearms */}
             <g {...gp('arms')}>
-              <path d="M8 108 Q2 142 6 174 L54 178 Q62 144 60 110 Z"
-                style={sp('arms')}/>
-              <path d="M192 108 Q198 142 194 174 L146 178 Q138 144 140 110 Z"
-                style={sp('arms')}/>
-              <path d="M6 178 Q2 214 8 242 L52 238 Q56 208 54 180 Z"
-                style={sp('arms')}/>
-              <path d="M194 178 Q198 214 192 242 L148 238 Q144 208 146 180 Z"
-                style={sp('arms')}/>
-              <path d="M12 140 Q20 128 32 138" fill="none" stroke={strokeFor('arms')} strokeWidth="1" opacity={opacityFor('arms') * 0.45} style={{pointerEvents:'none'}}/>
-              <path d="M188 140 Q180 128 168 138" fill="none" stroke={strokeFor('arms')} strokeWidth="1" opacity={opacityFor('arms') * 0.45} style={{pointerEvents:'none'}}/>
+              <path d="M8 104 Q2 138 6 168 L54 172 Q62 140 60 106 Z" style={sp('arms')}/>
+              <path d="M192 104 Q198 138 194 168 L146 172 Q138 140 140 106 Z" style={sp('arms')}/>
+              <path d="M6 172 Q2 206 8 232 L52 228 Q56 200 54 174 Z" style={sp('arms')}/>
+              <path d="M194 172 Q198 206 192 232 L148 228 Q144 200 146 174 Z" style={sp('arms')}/>
+              <path d="M12 136 Q20 124 32 134" fill="none" stroke={strokeFor('arms')} strokeWidth="1" opacity={opacityFor('arms') * 0.45} style={{pointerEvents:'none'}}/>
+              <path d="M188 136 Q180 124 168 134" fill="none" stroke={strokeFor('arms')} strokeWidth="1" opacity={opacityFor('arms') * 0.45} style={{pointerEvents:'none'}}/>
             </g>
 
             {/* Legs / Quads + Calves */}
             <g {...gp('legs')}>
-              <path d="M58 236 Q46 282 50 324 L90 322 Q96 278 88 236 Z"
-                style={sp('legs')}/>
-              <path d="M142 236 Q154 282 150 324 L110 322 Q104 278 112 236 Z"
-                style={sp('legs')}/>
-              <path d="M50 276 Q62 268 76 276" fill="none" stroke={strokeFor('legs')} strokeWidth="1" opacity={opacityFor('legs') * 0.4} style={{pointerEvents:'none'}}/>
-              <path d="M150 276 Q138 268 124 276" fill="none" stroke={strokeFor('legs')} strokeWidth="1" opacity={opacityFor('legs') * 0.4} style={{pointerEvents:'none'}}/>
-              <ellipse cx="70" cy="328" rx="18" ry="11" style={{...sp('legs'), opacity: opacityFor('legs') * 0.75}}/>
-              <ellipse cx="130" cy="328" rx="18" ry="11" style={{...sp('legs'), opacity: opacityFor('legs') * 0.75}}/>
-              <path d="M50 338 Q44 378 48 412 L90 412 Q94 376 88 338 Z"
-                style={sp('legs')}/>
-              <path d="M150 338 Q156 378 152 412 L110 412 Q106 376 112 338 Z"
-                style={sp('legs')}/>
+              {/* Left quad */}
+              <path d="M58 222 Q46 264 50 302 L88 300 Q94 262 86 222 Z" style={sp('legs')}/>
+              {/* Right quad */}
+              <path d="M142 222 Q154 264 150 302 L112 300 Q106 262 114 222 Z" style={sp('legs')}/>
+              <path d="M50 260 Q62 252 74 260" fill="none" stroke={strokeFor('legs')} strokeWidth="1" opacity={opacityFor('legs') * 0.4} style={{pointerEvents:'none'}}/>
+              <path d="M150 260 Q138 252 126 260" fill="none" stroke={strokeFor('legs')} strokeWidth="1" opacity={opacityFor('legs') * 0.4} style={{pointerEvents:'none'}}/>
+              {/* Knee caps */}
+              <ellipse cx="69" cy="306" rx="18" ry="10" style={{...sp('legs'), opacity: opacityFor('legs') * 0.75}}/>
+              <ellipse cx="131" cy="306" rx="18" ry="10" style={{...sp('legs'), opacity: opacityFor('legs') * 0.75}}/>
+              {/* Left calf */}
+              <path d="M50 316 Q44 350 48 384 L88 384 Q92 350 86 316 Z" style={sp('legs')}/>
+              {/* Right calf */}
+              <path d="M150 316 Q156 350 152 384 L112 384 Q108 350 114 316 Z" style={sp('legs')}/>
             </g>
           </>)}
 
@@ -236,62 +232,62 @@ export default function BodyMap({ tierMap, selected, onSelect }: Props) {
 
             {/* Shoulders (rear delts) */}
             <g {...gp('shoulders')}>
-              <ellipse cx="36" cy="100" rx="32" ry="24" style={sp('shoulders')}/>
-              <ellipse cx="164" cy="100" rx="32" ry="24" style={sp('shoulders')}/>
+              <ellipse cx="34" cy="96" rx="34" ry="26" style={sp('shoulders')}/>
+              <ellipse cx="166" cy="96" rx="34" ry="26" style={sp('shoulders')}/>
             </g>
 
             {/* Back / Traps + Lats */}
             <g {...gp('back')}>
-              <path d="M60 76 Q100 66 140 76 L136 116 Q100 124 64 116 Z"
+              <path d="M60 72 Q100 62 140 72 L136 110 Q100 118 64 110 Z"
                 style={sp('back')}/>
-              <path d="M16 108 L62 80 L64 156 L24 180 Z"
+              <path d="M16 104 L62 76 L64 148 L24 172 Z"
                 style={sp('back')} strokeLinejoin="round"/>
-              <path d="M184 108 L138 80 L136 156 L176 180 Z"
+              <path d="M184 104 L138 76 L136 148 L176 172 Z"
                 style={sp('back')} strokeLinejoin="round"/>
-              <line x1="100" y1="72" x2="100" y2="210"
+              <line x1="100" y1="68" x2="100" y2="200"
                 stroke={strokeFor('back')} strokeWidth="1.2"
                 opacity={opacityFor('back') * 0.4} style={{pointerEvents:'none'}}/>
             </g>
 
-            {/* Arms (triceps) — thick, close to torso */}
+            {/* Arms (triceps) */}
             <g {...gp('arms')}>
-              <path d="M12 108 Q6 140 10 172 L52 176 Q58 142 56 110 Z" style={sp('arms')}/>
-              <path d="M188 108 Q194 140 190 172 L148 176 Q142 142 144 110 Z" style={sp('arms')}/>
-              <path d="M10 176 Q6 212 12 238 L50 234 Q54 206 52 178 Z" style={sp('arms')}/>
-              <path d="M190 176 Q194 212 188 238 L150 234 Q146 206 148 178 Z" style={sp('arms')}/>
+              <path d="M8 104 Q2 138 6 168 L54 172 Q62 140 60 106 Z" style={sp('arms')}/>
+              <path d="M192 104 Q198 138 194 168 L146 172 Q138 140 140 106 Z" style={sp('arms')}/>
+              <path d="M6 172 Q2 206 8 232 L52 228 Q56 200 54 174 Z" style={sp('arms')}/>
+              <path d="M194 172 Q198 206 192 232 L148 228 Q144 200 146 174 Z" style={sp('arms')}/>
             </g>
 
             {/* Core (lower back / erectors) */}
             <g {...gp('core')}>
-              <path d="M64 154 Q100 160 136 154 L134 210 Q100 216 66 210 Z"
+              <path d="M64 146 Q100 152 136 146 L134 200 Q100 206 66 200 Z"
                 style={sp('core')}/>
-              <line x1="92" y1="156" x2="92" y2="210"
+              <line x1="92" y1="148" x2="92" y2="200"
                 stroke={strokeFor('core')} strokeWidth="1"
                 opacity={opacityFor('core') * 0.35} style={{pointerEvents:'none'}}/>
-              <line x1="108" y1="156" x2="108" y2="210"
+              <line x1="108" y1="148" x2="108" y2="200"
                 stroke={strokeFor('core')} strokeWidth="1"
                 opacity={opacityFor('core') * 0.35} style={{pointerEvents:'none'}}/>
             </g>
 
             {/* Hip */}
-            <path d="M62 210 Q100 218 138 210 L140 234 Q100 240 60 234 Z"
+            <path d="M62 200 Q100 208 138 200 L140 222 Q100 228 60 222 Z"
               fill="#0a1220" stroke="#1a2a40" strokeWidth="0.8"/>
 
             {/* Legs (glutes + hamstrings + calves) */}
             <g {...gp('legs')}>
-              <ellipse cx="80"  cy="240" rx="24" ry="20" style={sp('legs')}/>
-              <ellipse cx="120" cy="240" rx="24" ry="20" style={sp('legs')}/>
-              <line x1="100" y1="224" x2="100" y2="258"
+              <ellipse cx="80"  cy="228" rx="24" ry="18" style={sp('legs')}/>
+              <ellipse cx="120" cy="228" rx="24" ry="18" style={sp('legs')}/>
+              <line x1="100" y1="214" x2="100" y2="244"
                 stroke={strokeFor('legs')} strokeWidth="1"
                 opacity={opacityFor('legs') * 0.35} style={{pointerEvents:'none'}}/>
-              <path d="M58 256 Q46 298 50 336 L86 334 Q90 292 80 256 Z"
-                style={sp('legs')}/>
-              <path d="M142 256 Q154 298 150 336 L114 334 Q110 292 120 256 Z"
-                style={sp('legs')}/>
-              <path d="M50 342 Q46 382 50 418 L88 418 Q92 380 86 342 Z"
-                style={sp('legs')}/>
-              <path d="M150 342 Q154 382 150 418 L112 418 Q108 380 114 342 Z"
-                style={sp('legs')}/>
+              {/* Left hamstring */}
+              <path d="M58 244 Q46 282 50 318 L86 316 Q90 278 80 244 Z" style={sp('legs')}/>
+              {/* Right hamstring */}
+              <path d="M142 244 Q154 282 150 318 L114 316 Q110 278 120 244 Z" style={sp('legs')}/>
+              {/* Left calf */}
+              <path d="M50 324 Q46 358 50 388 L88 388 Q92 356 86 324 Z" style={sp('legs')}/>
+              {/* Right calf */}
+              <path d="M150 324 Q154 358 150 388 L112 388 Q108 356 114 324 Z" style={sp('legs')}/>
             </g>
           </>)}
         </svg>
