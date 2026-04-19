@@ -43,6 +43,12 @@ function fmtDist(m: number | null | undefined) {
 export default function FeedPage() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [feedTab, setFeedTab] = useState<'feed' | 'discover'>('feed');
+  // Discover / user search
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [suggested, setSuggested] = useState<any[]>([]);
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   // Comments: { [activityId]: { open: boolean; comments: any[]; input: string; posting: boolean } }
   const [commentsState, setCommentsState] = useState<Record<string, { open: boolean; comments: any[]; input: string; posting: boolean }>>({});
 
@@ -53,7 +59,42 @@ export default function FeedPage() {
     } finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadSuggested() {
+    try {
+      const r = await api.get<{ users: any[] }>('/social/suggested');
+      setSuggested(r.users);
+      const following = await api.get<{ following: any[] }>('/social/following');
+      setFollowingIds(new Set(following.following.map((u: any) => u.id)));
+    } catch (_) {}
+  }
+
+  async function searchUsers(q: string) {
+    setSearchQ(q);
+    if (!q.trim()) { setSearchResults([]); return; }
+    try {
+      const r = await api.get<{ users: any[] }>(`/social/search?q=${encodeURIComponent(q)}`);
+      setSearchResults(r.users);
+    } catch (_) {}
+  }
+
+  async function toggleFollow(userId: string, currentlyFollowing: boolean) {
+    try {
+      if (currentlyFollowing) {
+        await api.delete('/social/follow', { followingId: userId });
+      } else {
+        await api.post('/social/follow', { followingId: userId });
+      }
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        if (currentlyFollowing) next.delete(userId); else next.add(userId);
+        return next;
+      });
+      setSearchResults((prev) => prev.map((u) => u.id === userId ? { ...u, is_following: !currentlyFollowing } : u));
+      setSuggested((prev) => prev.map((u) => u.id === userId ? { ...u, is_following: !currentlyFollowing } : u));
+    } catch (_) {}
+  }
+
+  useEffect(() => { load(); loadSuggested(); }, []);
 
   async function toggleComments(activityId: string) {
     setCommentsState((prev) => {
@@ -107,11 +148,55 @@ export default function FeedPage() {
         <p className="text-slate-500 text-sm mt-1">Workouts &amp; activities from people you follow</p>
       </div>
 
+      {/* Feed / Discover tab switch */}
+      <div className="flex gap-1 glass rounded-xl p-1">
+        {([['feed','🌊 Feed'],['discover','🔍 Discover']] as const).map(([t, label]) => (
+          <button key={t} onClick={() => setFeedTab(t)}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${feedTab === t ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Discover Tab ─── */}
+      {feedTab === 'discover' && (
+        <div className="space-y-4">
+          <input type="text" value={searchQ} onChange={(e) => searchUsers(e.target.value)}
+            placeholder="🔍 Search athletes by name…"
+            className="w-full rounded-xl glass px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50" />
+
+          {searchQ.trim() && searchResults.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Search Results</p>
+              {searchResults.map((u) => <UserCard key={u.id} user={u} onToggleFollow={toggleFollow} />)}
+            </div>
+          )}
+          {searchQ.trim() && searchResults.length === 0 && (
+            <p className="text-sm text-slate-500 text-center py-8">No athletes found for "{searchQ}"</p>
+          )}
+
+          {!searchQ.trim() && (
+            <div className="space-y-2">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Suggested Athletes</p>
+              {suggested.length === 0
+                ? <p className="text-sm text-slate-600 text-center py-6">No suggestions available</p>
+                : suggested.map((u) => <UserCard key={u.id} user={u} onToggleFollow={toggleFollow} />)
+              }
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Feed Tab ─── */}
+      {feedTab === 'feed' && (<>
       {feed.length === 0 && (
         <div className="text-center py-20 text-slate-500">
           <p className="text-5xl mb-3">👥</p>
           <p className="font-semibold text-lg">Nothing here yet</p>
           <p className="text-sm mt-2">Follow athletes to see their workouts and activities</p>
+          <button onClick={() => setFeedTab('discover')} className="mt-4 px-6 py-2 rounded-xl bg-violet-500/20 text-violet-300 text-sm font-bold hover:bg-violet-500/30 transition-colors">
+            🔍 Find Athletes to Follow
+          </button>
         </div>
       )}
 
@@ -224,6 +309,30 @@ export default function FeedPage() {
           )}
         </div>
       ))}
+      </>)}
+    </div>
+  );
+}
+
+function UserCard({ user, onToggleFollow }: { user: any; onToggleFollow: (id: string, following: boolean) => void }) {
+  return (
+    <div className="glass rounded-xl p-3 flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-sm font-black text-white shrink-0">
+        {user.full_name?.[0]?.toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-white truncate">{user.full_name}</p>
+        <p className="text-[10px] text-slate-500">{user.followers_count ?? 0} followers · {user.role ?? 'user'}</p>
+      </div>
+      <button
+        onClick={() => onToggleFollow(user.id, user.is_following)}
+        className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0 ${
+          user.is_following
+            ? 'bg-white/10 text-slate-400 hover:bg-rose-500/20 hover:text-rose-300'
+            : 'bg-violet-500/20 text-violet-300 hover:bg-violet-500/30'
+        }`}>
+        {user.is_following ? 'Unfollow' : '+ Follow'}
+      </button>
     </div>
   );
 }

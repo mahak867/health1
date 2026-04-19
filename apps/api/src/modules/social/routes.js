@@ -100,3 +100,46 @@ socialRouter.get('/followers', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── User Discovery / Search ──────────────────────────────────────────────────
+socialRouter.get('/search', async (req, res, next) => {
+  try {
+    const q = (req.query.q ?? '').toString().trim().slice(0, 50);
+    if (q.length < 1) return res.json({ users: [] });
+    const result = await query(
+      `SELECT
+         u.id, u.full_name, u.role,
+         (SELECT COUNT(*) FROM social_follows WHERE following_id = u.id)::int AS followers_count,
+         (EXISTS(SELECT 1 FROM social_follows WHERE follower_id = $2 AND following_id = u.id)) AS is_following
+       FROM users u
+       WHERE u.id != $2
+         AND u.full_name ILIKE $1
+       ORDER BY followers_count DESC
+       LIMIT 20`,
+      [`%${q}%`, req.user.sub]
+    );
+    return res.json({ users: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+socialRouter.get('/suggested', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT
+         u.id, u.full_name, u.role,
+         (SELECT COUNT(*) FROM social_follows WHERE following_id = u.id)::int AS followers_count,
+         (EXISTS(SELECT 1 FROM social_follows WHERE follower_id = $1 AND following_id = u.id)) AS is_following
+       FROM users u
+       WHERE u.id != $1
+         AND u.id NOT IN (SELECT following_id FROM social_follows WHERE follower_id = $1)
+       ORDER BY followers_count DESC, RANDOM()
+       LIMIT 10`,
+      [req.user.sub]
+    );
+    return res.json({ users: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});

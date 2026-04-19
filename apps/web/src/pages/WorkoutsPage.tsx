@@ -33,8 +33,15 @@ export default function WorkoutsPage() {
   const [wForm, setWForm] = useState(emptyW);
   const [eForm, setEForm] = useState(emptyE);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'workouts' | 'templates' | 'prs' | 'analytics'>('workouts');
+  const [activeTab, setActiveTab] = useState<'workouts' | 'templates' | 'prs' | 'analytics' | 'intervals'>('workouts');
   const [newPRFlash, setNewPRFlash] = useState<string | null>(null);
+  // Interval timer state
+  const [intervalConfig, setIntervalConfig] = useState({ workSec: 40, restSec: 20, rounds: 8, setName: 'Tabata' });
+  const [intervalActive, setIntervalActive] = useState(false);
+  const [intervalPhase, setIntervalPhase] = useState<'work' | 'rest'>('work');
+  const [intervalRound, setIntervalRound] = useState(1);
+  const [intervalCountdown, setIntervalCountdown] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Analytics — volume per muscle group
   const [volumeData, setVolumeData] = useState<any[]>([]);
   // Session timer — tracks total elapsed time since first exercise logged
@@ -98,6 +105,50 @@ export default function WorkoutsPage() {
       });
     }, 1000);
   }
+
+  function startIntervalTimer() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setIntervalPhase('work');
+    setIntervalRound(1);
+    setIntervalCountdown(intervalConfig.workSec);
+    setIntervalActive(true);
+  }
+
+  function stopIntervalTimer() {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    setIntervalActive(false);
+  }
+
+  useEffect(() => {
+    if (!intervalActive) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setIntervalCountdown((prev) => {
+        if (prev > 1) return prev - 1;
+        // Phase transition
+        setIntervalPhase((phase) => {
+          if (phase === 'work') {
+            setIntervalCountdown(intervalConfig.restSec);
+            return 'rest';
+          } else {
+            setIntervalRound((r) => {
+              if (r >= intervalConfig.rounds) {
+                stopIntervalTimer();
+                return 1;
+              }
+              setIntervalCountdown(intervalConfig.workSec);
+              return r + 1;
+            });
+            return 'work';
+          }
+        });
+        return prev;
+      });
+    }, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [intervalActive, intervalConfig]);
 
   // Cleanup on unmount
   useEffect(() => () => { if (restIntervalRef.current) clearInterval(restIntervalRef.current); }, []);
@@ -210,6 +261,7 @@ export default function WorkoutsPage() {
           ['templates', `📋 Templates (${templates.length})`],
           ['prs', `🏆 PRs (${prs.length})`],
           ['analytics', '📊 Analytics'],
+          ['intervals', '⏱️ Intervals'],
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setActiveTab(t as any)}
             className={`px-3 py-1.5 rounded-xl text-sm font-bold transition-colors ${
@@ -647,6 +699,87 @@ export default function WorkoutsPage() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* ─── Interval Timer Tab ─── */}
+      {activeTab === 'intervals' && (
+        <div className="space-y-6 max-w-md mx-auto">
+          <p className="text-xs text-slate-500 text-center">Tabata, EMOM, HIIT — build your custom interval timer</p>
+
+          {/* Preset buttons */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { name: 'Tabata',  work: 20, rest: 10, rounds: 8  },
+              { name: 'EMOM',    work: 45, rest: 15, rounds: 10 },
+              { name: '30/30',   work: 30, rest: 30, rounds: 10 },
+            ].map((p) => (
+              <button key={p.name} onClick={() => setIntervalConfig({ workSec: p.work, restSec: p.rest, rounds: p.rounds, setName: p.name })}
+                disabled={intervalActive}
+                className={`py-2 rounded-xl text-sm font-bold transition-colors ${intervalConfig.setName === p.name ? 'bg-orange-500/30 text-orange-300 border border-orange-500/40' : 'glass text-slate-400 hover:text-white'}`}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Config inputs */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: '🟢 Work (s)', key: 'workSec',  min: 5, max: 300 },
+              { label: '🔴 Rest (s)', key: 'restSec',  min: 0, max: 300 },
+              { label: '🔁 Rounds',  key: 'rounds',   min: 1, max: 100 },
+            ].map(({ label, key, min, max }) => (
+              <div key={key} className="text-center">
+                <p className="text-[10px] text-slate-500 mb-1">{label}</p>
+                <input type="number" min={min} max={max} disabled={intervalActive}
+                  value={(intervalConfig as any)[key]}
+                  onChange={(e) => setIntervalConfig((c) => ({ ...c, [key]: Number(e.target.value) }))}
+                  className="w-full text-center rounded-xl glass px-2 py-2.5 text-lg font-black text-white focus:outline-none focus:ring-1 focus:ring-orange-500/50 disabled:opacity-50" />
+              </div>
+            ))}
+          </div>
+
+          {/* Timer display */}
+          <div className="glass rounded-2xl p-8 text-center space-y-4">
+            {intervalActive ? (
+              <>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Round {intervalRound} of {intervalConfig.rounds}</p>
+                <div className={`text-8xl font-black tabular-nums ${intervalPhase === 'work' ? 'text-green-400' : 'text-red-400'}`}>
+                  {String(Math.floor(intervalCountdown / 60)).padStart(2,'0')}:{String(intervalCountdown % 60).padStart(2,'0')}
+                </div>
+                <p className="text-2xl font-bold" style={{ color: intervalPhase === 'work' ? '#22c55e' : '#ef4444' }}>
+                  {intervalPhase === 'work' ? '🟢 WORK' : '🔴 REST'}
+                </p>
+                {/* Progress bar */}
+                <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-1000"
+                    style={{
+                      width: `${((intervalPhase === 'work' ? intervalConfig.workSec - intervalCountdown : intervalConfig.restSec - intervalCountdown) /
+                                (intervalPhase === 'work' ? intervalConfig.workSec : intervalConfig.restSec)) * 100}%`,
+                      background: intervalPhase === 'work' ? '#22c55e' : '#ef4444'
+                    }} />
+                </div>
+                <button onClick={stopIntervalTimer}
+                  className="px-8 py-3 rounded-xl bg-red-500/20 text-red-300 font-bold hover:bg-red-500/30 transition-colors">
+                  ⏹ Stop
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-400 text-sm">{intervalConfig.setName} · {intervalConfig.workSec}s work / {intervalConfig.restSec}s rest · {intervalConfig.rounds} rounds</p>
+                <p className="text-4xl font-black text-slate-400">
+                  {String(Math.floor(intervalConfig.workSec / 60)).padStart(2,'0')}:{String(intervalConfig.workSec % 60).padStart(2,'0')}
+                </p>
+                <p className="text-xs text-slate-600">
+                  Total: ~{Math.round(((intervalConfig.workSec + intervalConfig.restSec) * intervalConfig.rounds) / 60)} min
+                </p>
+                <button onClick={startIntervalTimer}
+                  className="px-8 py-3 rounded-xl bg-green-500 hover:bg-green-400 text-white font-black text-lg transition-colors">
+                  ▶ Start
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

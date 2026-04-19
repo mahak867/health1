@@ -99,6 +99,50 @@ export default function DashboardPage({ user, onNavigate }: Props) {
   const calEaten   = Number(nutritionToday?.nutrition?.total_calories ?? 0);
   const calEatenPct = Math.min((calEaten / calTarget) * 100, 100);
 
+  // ─── Oura-style composite Readiness Score (0-100) ─────────────────────────
+  const readinessScore = (() => {
+    if (!latestVital) return null;
+    let score = 50; // baseline
+    // Sleep (0-30pts)
+    const sleep = latestVital.sleep_hours;
+    if (sleep != null) {
+      if (sleep >= 7 && sleep <= 9) score += 30;
+      else if (sleep >= 6) score += 20;
+      else if (sleep >= 5) score += 10;
+    }
+    // SpO2 (0-15pts)
+    const spo2 = latestVital.spo2;
+    if (spo2 != null) {
+      if (spo2 >= 97) score += 15;
+      else if (spo2 >= 95) score += 10;
+      else if (spo2 >= 93) score += 5;
+    }
+    // Resting HR (0-15pts) — lower is better
+    const hr = latestVital.heart_rate;
+    if (hr != null) {
+      if (hr < 55) score += 15;
+      else if (hr < 65) score += 10;
+      else if (hr < 80) score += 5;
+    }
+    // Stress (0-10pts penalty if high stress)
+    const stress = latestVital.stress_level;
+    if (stress != null) {
+      if (stress <= 3) score += 10;
+      else if (stress <= 6) score += 3;
+      else score -= 5;
+    }
+    return Math.max(0, Math.min(100, Math.round(score)));
+  })();
+  const readinessColor = readinessScore == null ? '#6b7280'
+    : readinessScore >= 75 ? '#22c55e'
+    : readinessScore >= 50 ? '#f59e0b'
+    : '#ef4444';
+  const readinessLabel = readinessScore == null ? '—'
+    : readinessScore >= 80 ? 'Peak'
+    : readinessScore >= 70 ? 'Good'
+    : readinessScore >= 55 ? 'Fair'
+    : 'Low';
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-8">
 
@@ -111,7 +155,23 @@ export default function DashboardPage({ user, onNavigate }: Props) {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div className="sm:ml-auto">
+        <div className="sm:ml-auto flex items-center gap-3">
+          {/* Oura-style Readiness Score */}
+          {readinessScore !== null && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl glass border" style={{ borderColor: `${readinessColor}30` }}>
+              <svg width={44} height={44} viewBox="0 0 44 44" className="shrink-0">
+                <circle cx={22} cy={22} r={18} fill="none" stroke="#ffffff08" strokeWidth={6} />
+                <circle cx={22} cy={22} r={18} fill="none" stroke={readinessColor} strokeWidth={6}
+                  strokeDasharray={`${(readinessScore / 100) * 113.1} 113.1`}
+                  transform="rotate(-90 22 22)" strokeLinecap="round" />
+                <text x={22} y={26} textAnchor="middle" fill={readinessColor} fontSize="11" fontWeight="bold">{readinessScore}</text>
+              </svg>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest">Readiness</p>
+                <p className="text-sm font-black" style={{ color: readinessColor }}>{readinessLabel}</p>
+              </div>
+            </div>
+          )}
           <span className="inline-block px-4 py-1.5 rounded-full glass text-xs font-semibold text-slate-300 capitalize">
             {user.role}
           </span>
