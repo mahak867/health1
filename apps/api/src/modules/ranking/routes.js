@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../../config/db.js';
-import { strengthScore, rankForScore } from './service.js';
+import { strengthScore, rankForScore, epley1RM } from './service.js';
 
 export const rankingRouter = Router();
 
@@ -11,17 +11,20 @@ rankingRouter.get('/muscle', async (req, res, next) => {
       muscleGroup: z.string().default('chest'),
       weightKg: z.coerce.number().min(0).max(1000).default(80),
       reps: z.coerce.number().int().min(1).max(100).default(8),
+      bodyWeightKg: z.coerce.number().min(20).max(400).default(75),
       workoutsPerWeek: z.coerce.number().min(0).max(14).default(4),
       streakDays: z.coerce.number().int().min(0).default(10),
-      volumeProgression: z.coerce.number().min(0).max(1).default(0.5)
+      volumeProgression: z.coerce.number().min(0).max(1).default(0.05)
     });
 
     const input = schema.parse(req.query);
+    const estimated1RM = epley1RM(input.weightKg, input.reps);
     const score = strengthScore(input);
     const rank = rankForScore(score);
 
     return res.json({
       muscleGroup: input.muscleGroup,
+      estimated1RM,
       score,
       rank
     });
@@ -49,12 +52,14 @@ rankingRouter.post('/my', async (req, res, next) => {
       muscleGroup: z.string().min(1),
       weightKg: z.number().min(0),
       reps: z.number().int().min(1),
+      bodyWeightKg: z.number().min(20).max(400).default(75),
       workoutsPerWeek: z.number().min(0),
       streakDays: z.number().int().min(0),
       volumeProgression: z.number().min(0).max(1)
     });
 
     const input = schema.parse(req.body);
+    const estimated1RM = epley1RM(input.weightKg, input.reps);
     const score = strengthScore(input);
     const rank = rankForScore(score);
 
@@ -67,7 +72,7 @@ rankingRouter.post('/my', async (req, res, next) => {
       [req.user.sub, input.muscleGroup, score, rank.current.name, rank.progress / 100]
     );
 
-    return res.json({ ranking: upserted.rows[0], rank });
+    return res.json({ ranking: upserted.rows[0], rank, estimated1RM });
   } catch (error) {
     return next(error);
   }
