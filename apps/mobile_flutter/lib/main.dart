@@ -4,8 +4,11 @@ import 'screens/vitals_screen.dart';
 import 'screens/workouts_screen.dart';
 import 'screens/meals_screen.dart';
 import 'screens/profile_screen.dart';
+import 'services/widget_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await WidgetService.init();
   runApp(const HealthSphereApp());
 }
 

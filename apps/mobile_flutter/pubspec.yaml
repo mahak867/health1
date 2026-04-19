@@ -9,6 +9,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Home-screen widget bridge (Android AppWidget + iOS WidgetKit)
+  home_widget: ^0.4.1
+  # Local key/value store for persisting widget data between sessions
+  shared_preferences: ^2.3.2
+  # HTTP client for API calls from Flutter
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
