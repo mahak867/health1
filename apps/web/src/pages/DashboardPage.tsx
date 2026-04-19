@@ -243,6 +243,37 @@ export default function DashboardPage({ user, onNavigate }: Props) {
               </div>
             ))}
           </div>
+
+          {/* ─── Strain Score Card (WHOOP-style) ─── */}
+          {(() => {
+            const workouts = weeklySummary.workouts?.count ?? 0;
+            const calBurned = weeklySummary.workouts?.caloriesBurned ?? 0;
+            const km = Number(weeklySummary.activities?.totalKm ?? 0);
+            // Estimate daily strain 1-21 (simplified WHOOP model)
+            const dailyStrain = Math.min(21, Math.max(0,
+              (workouts * 2.5) + (calBurned / 500) + (km / 5)
+            ));
+            const strainColor = dailyStrain >= 14 ? '#ef4444' : dailyStrain >= 10 ? '#f97316' : dailyStrain >= 6 ? '#f59e0b' : '#22c55e';
+            const strainLabel = dailyStrain >= 14 ? 'All Out' : dailyStrain >= 10 ? 'Strenuous' : dailyStrain >= 6 ? 'Moderate' : 'Light';
+            const pct = (dailyStrain / 21) * 100;
+            return (
+              <div className="glass rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">⚡ Weekly Strain</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full glass font-bold" style={{ color: strainColor }}>{strainLabel}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="text-3xl font-black" style={{ color: strainColor }}>{dailyStrain.toFixed(1)}</p>
+                  <div className="flex-1">
+                    <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: strainColor }} />
+                    </div>
+                    <p className="text-[9px] text-slate-600 mt-1">/ 21 max (WHOOP model)</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

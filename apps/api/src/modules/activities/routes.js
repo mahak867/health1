@@ -217,3 +217,57 @@ activitiesRouter.get('/feed/following', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Activity Comments ────────────────────────────────────────────────────────
+const commentSchema = z.object({ body: z.string().min(1).max(1000) });
+
+activitiesRouter.get('/:activityId/comments', async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT ac.id, ac.body, ac.created_at, u.full_name, u.id AS author_id
+       FROM activity_comments ac
+       JOIN users u ON u.id = ac.user_id
+       WHERE ac.activity_id = $1
+       ORDER BY ac.created_at ASC
+       LIMIT 200`,
+      [req.params.activityId]
+    );
+    return res.json({ comments: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+activitiesRouter.post('/:activityId/comments', async (req, res, next) => {
+  try {
+    const { body } = commentSchema.parse(req.body);
+    // Verify the activity is visible (public or owned by requester)
+    const access = await query(
+      'SELECT id FROM activities WHERE id = $1',
+      [req.params.activityId]
+    );
+    if (access.rowCount === 0) return res.status(404).json({ error: 'Activity not found' });
+
+    const created = await query(
+      `INSERT INTO activity_comments (activity_id, user_id, body)
+       VALUES ($1, $2, $3)
+       RETURNING id, body, created_at`,
+      [req.params.activityId, req.user.sub, body]
+    );
+    return res.status(201).json({ comment: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+activitiesRouter.delete('/:activityId/comments/:commentId', async (req, res, next) => {
+  try {
+    await query(
+      'DELETE FROM activity_comments WHERE id = $1 AND user_id = $2',
+      [req.params.commentId, req.user.sub]
+    );
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
+});

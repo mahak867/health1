@@ -388,3 +388,71 @@ healthModuleRouter.delete('/medications/:id', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Mood Logging (Daylio-style 1-5 scale + optional journal note) ─────────────
+const moodSchema = z.object({
+  score:    z.number().int().min(1).max(5),
+  notes:    z.string().max(2000).optional(),
+  loggedAt: z.string().datetime().optional()
+});
+
+healthModuleRouter.get('/mood', async (req, res, next) => {
+  try {
+    const days  = Math.min(Number(req.query.days ?? 30), 90);
+    const result = await query(
+      `SELECT id, score, notes, logged_at
+       FROM mood_logs
+       WHERE user_id = $1 AND logged_at >= NOW() - ($2 || ' days')::interval
+       ORDER BY logged_at DESC`,
+      [req.user.sub, days]
+    );
+    const avg = result.rows.length > 0
+      ? parseFloat((result.rows.reduce((s, r) => s + r.score, 0) / result.rows.length).toFixed(2))
+      : null;
+    return res.json({ logs: result.rows, average: avg });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+healthModuleRouter.post('/mood', async (req, res, next) => {
+  try {
+    const input = moodSchema.parse(req.body);
+    const created = await query(
+      `INSERT INTO mood_logs (user_id, score, notes, logged_at)
+       VALUES ($1, $2, $3, COALESCE($4, NOW()))
+       RETURNING *`,
+      [req.user.sub, input.score, input.notes ?? null, input.loggedAt ?? null]
+    );
+    return res.status(201).json({ log: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Sleep Stages (light/deep/REM breakdown as part of vitals) ───────────────
+const sleepStagesSchema = z.object({
+  recordedAt:  z.string().datetime(),
+  sleepHours:  z.number().min(0).max(24),
+  remHours:    z.number().min(0).max(12).optional(),
+  deepHours:   z.number().min(0).max(12).optional(),
+  lightHours:  z.number().min(0).max(24).optional()
+});
+
+healthModuleRouter.post('/sleep-stages', async (req, res, next) => {
+  try {
+    const input = sleepStagesSchema.parse(req.body);
+    const created = await query(
+      `INSERT INTO vitals (user_id, recorded_at, sleep_hours, sleep_rem_h, sleep_deep_h, sleep_light_h)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        req.user.sub, input.recordedAt, input.sleepHours,
+        input.remHours ?? null, input.deepHours ?? null, input.lightHours ?? null
+      ]
+    );
+    return res.status(201).json({ vital: created.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});

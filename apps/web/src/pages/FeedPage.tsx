@@ -43,6 +43,8 @@ function fmtDist(m: number | null | undefined) {
 export default function FeedPage() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  // Comments: { [activityId]: { open: boolean; comments: any[]; input: string; posting: boolean } }
+  const [commentsState, setCommentsState] = useState<Record<string, { open: boolean; comments: any[]; input: string; posting: boolean }>>({});
 
   async function load() {
     try {
@@ -52,6 +54,31 @@ export default function FeedPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  async function toggleComments(activityId: string) {
+    setCommentsState((prev) => {
+      const cur = prev[activityId];
+      if (cur?.open) return { ...prev, [activityId]: { ...cur, open: false } };
+      // Load comments
+      api.get<{ comments: any[] }>(`/activities/${activityId}/comments`)
+        .then((r) => setCommentsState((p) => ({ ...p, [activityId]: { ...p[activityId], comments: r.comments } })))
+        .catch(() => {});
+      return { ...prev, [activityId]: { open: true, comments: cur?.comments ?? [], input: cur?.input ?? '', posting: false } };
+    });
+  }
+
+  async function postComment(activityId: string) {
+    const cur = commentsState[activityId];
+    if (!cur?.input?.trim()) return;
+    setCommentsState((p) => ({ ...p, [activityId]: { ...p[activityId], posting: true } }));
+    try {
+      await api.post(`/activities/${activityId}/comments`, { body: cur.input.trim() });
+      const r = await api.get<{ comments: any[] }>(`/activities/${activityId}/comments`);
+      setCommentsState((p) => ({ ...p, [activityId]: { ...p[activityId], comments: r.comments, input: '', posting: false } }));
+    } catch (_) {
+      setCommentsState((p) => ({ ...p, [activityId]: { ...p[activityId], posting: false } }));
+    }
+  }
 
   async function giveKudos(item: FeedItem) {
     if (item.feed_type !== 'activity') return;
@@ -136,21 +163,62 @@ export default function FeedPage() {
             </div>
           )}
 
-          {/* Kudos bar (only for activities) */}
+          {/* Kudos + Comments bar (only for activities) */}
           {item.feed_type === 'activity' && (
-            <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
-              <button
-                onClick={() => giveKudos(item)}
-                className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-                  item.viewer_gave_kudos
-                    ? 'bg-yellow-500/20 text-yellow-300'
-                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                👍 {item.viewer_gave_kudos ? 'Kudos!' : 'Give Kudos'}
-              </button>
-              {(item.kudos_count ?? 0) > 0 && (
-                <span className="text-xs text-slate-500">{item.kudos_count} kudos</span>
+            <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => giveKudos(item)}
+                  className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                    item.viewer_gave_kudos
+                      ? 'bg-yellow-500/20 text-yellow-300'
+                      : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  👍 {item.viewer_gave_kudos ? 'Kudos!' : 'Give Kudos'}
+                </button>
+                {(item.kudos_count ?? 0) > 0 && (
+                  <span className="text-xs text-slate-500">{item.kudos_count} kudos</span>
+                )}
+                <button
+                  onClick={() => toggleComments(item.id)}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg glass text-slate-400 hover:text-white hover:bg-white/10 transition-colors ml-1"
+                >
+                  💬 {commentsState[item.id]?.open ? 'Hide' : 'Comment'}
+                  {(commentsState[item.id]?.comments?.length ?? 0) > 0 && (
+                    <span className="text-xs text-slate-500 ml-1">({commentsState[item.id].comments.length})</span>
+                  )}
+                </button>
+              </div>
+              {commentsState[item.id]?.open && (
+                <div className="space-y-2">
+                  {commentsState[item.id].comments.map((c: any) => (
+                    <div key={c.id} className="flex gap-2 text-sm">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-[10px] font-black text-white shrink-0 mt-0.5">
+                        {c.full_name?.[0]?.toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-white text-xs">{c.full_name} </span>
+                        <span className="text-slate-300 text-xs">{c.body}</span>
+                        <p className="text-[10px] text-slate-600 mt-0.5">{new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      value={commentsState[item.id]?.input ?? ''}
+                      onChange={(e) => setCommentsState((p) => ({ ...p, [item.id]: { ...p[item.id], input: e.target.value } }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); postComment(item.id); } }}
+                      placeholder="Add a comment…"
+                      className="flex-1 bg-white/5 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 border border-white/10 focus:outline-none focus:border-violet-500/40"
+                    />
+                    <button onClick={() => postComment(item.id)}
+                      disabled={commentsState[item.id]?.posting || !commentsState[item.id]?.input?.trim()}
+                      className="px-3 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-xs font-bold disabled:opacity-40">
+                      Post
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}

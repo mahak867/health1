@@ -71,6 +71,11 @@ export default function AiPage() {
   const [loading, setLoading] = useState('');
   const [error, setError] = useState('');
   const [aiTab, setAiTab] = useState<'chat' | 'tools'>('chat');
+  // HR Zones
+  const [hrZones, setHrZones] = useState<any[] | null>(null);
+  useEffect(() => {
+    api.get<{ zones: any[] }>('/fitness/hr-zones').then((r) => setHrZones(r.zones)).catch(() => {});
+  }, []);
 
   // Chat state
   interface ChatMessage { role: 'user' | 'ai'; text: string; }
@@ -410,6 +415,34 @@ export default function AiPage() {
           )}
         </form>
       </Card>
+
+      {/* ─── Personalized Heart Rate Zones ─── */}
+      {hrZones && (
+        <Card title="❤️ Your Personalized HR Zones" accent="rose">
+          <p className="text-xs text-slate-500 mb-4">Karvonen method — based on your age-predicted max HR and resting HR from recent vitals</p>
+          <div className="space-y-3">
+            {hrZones.map((z) => (
+              <div key={z.zone}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-bold text-white">Zone {z.zone} — {z.name}</span>
+                  <span className="text-xs font-mono" style={{ color: z.color }}>{z.low}–{z.high} bpm</span>
+                </div>
+                <div className="h-3 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full" style={{
+                    width: `${((z.high - z.low) / (hrZones[hrZones.length - 1].high - hrZones[0].low)) * 60 + 30}%`,
+                    background: z.color,
+                    opacity: 0.8
+                  }} />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-0.5">{z.description}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 p-3 rounded-xl bg-white/5 text-[10px] text-slate-400">
+            💡 Tip: Most training time (70-80%) should be in Z2 (aerobic base) for optimal endurance adaptation.
+          </div>
+        </Card>
+      )}
       </>)}
     </div>
   );

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'mood_screen.dart';
 
 /// Guided breathwork / mental-health screen.
 ///
@@ -307,7 +308,28 @@ class _BreathworkScreenState extends State<BreathworkScreen>
             ),
           ],
         ],
-      ),
+        // ─── Mood check-in shortcut ─────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Text('🧠', style: TextStyle(fontSize: 18)),
+              label: const Text('Mood Check-In'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF8B5CF6),
+                side: const BorderSide(color: Color(0xFF8B5CF6), width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MoodScreen()),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

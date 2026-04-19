@@ -283,6 +283,97 @@ export default function VitalsPage() {
         </div>
       )}
 
+      {/* ─── Blood Pressure Dual-Line Trend ─── */}
+      {(() => {
+        const bpSeries = [...vitals].reverse().filter((v) => v.systolic_bp != null && v.diastolic_bp != null);
+        if (bpSeries.length < 2) return null;
+        const W = 300; const H = 80; const PAD = 6;
+        const sysList = bpSeries.map((v) => v.systolic_bp as number);
+        const diasList = bpSeries.map((v) => v.diastolic_bp as number);
+        const allVals = [...sysList, ...diasList];
+        const minV = Math.min(...allVals) - 5;
+        const maxV = Math.max(...allVals) + 5;
+        const range = maxV - minV || 1;
+        const toX = (i: number) => PAD + (i / (bpSeries.length - 1)) * (W - PAD * 2);
+        const toY = (v: number) => H - PAD - ((v - minV) / range) * (H - PAD * 2);
+        const polyline = (vals: number[], col: string) => (
+          <polyline points={vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')}
+            fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        );
+        const latSys = sysList[sysList.length - 1];
+        const latDias = diasList[diasList.length - 1];
+        const bpStatus = latSys < 120 && latDias < 80 ? '✅ Normal'
+          : latSys < 130 && latDias < 80 ? '⚠️ Elevated'
+          : '🔴 High';
+        return (
+          <div className="glass rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🩺 Blood Pressure Trend</p>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-red-300 font-bold">{latSys}</span>
+                <span className="text-slate-500">/</span>
+                <span className="text-blue-300 font-bold">{latDias}</span>
+                <span className="text-slate-500">mmHg</span>
+                <span className="text-xs px-2 py-0.5 rounded-full glass">{bpStatus}</span>
+              </div>
+            </div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20">
+              {/* 120/80 reference lines */}
+              <line x1={PAD} x2={W - PAD} y1={toY(120)} y2={toY(120)} stroke="#ef444420" strokeWidth="1" strokeDasharray="3,3" />
+              <line x1={PAD} x2={W - PAD} y1={toY(80)}  y2={toY(80)}  stroke="#3b82f620" strokeWidth="1" strokeDasharray="3,3" />
+              {polyline(sysList,  '#ef4444')}
+              {polyline(diasList, '#3b82f6')}
+            </svg>
+            <div className="flex gap-4 mt-2 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-red-400 inline-block rounded" /> Systolic</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-400 inline-block rounded" /> Diastolic</span>
+              <span className="text-slate-600 ml-auto">dashed = 120/80 reference</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Sleep Quality Bar Chart (14 nights) ─── */}
+      {sleepData.length >= 2 && (() => {
+        const W = 400; const H = 80; const PAD = 6;
+        const last14 = [...vitals].reverse().filter((v) => v.sleep_hours != null).slice(-14);
+        if (last14.length < 2) return null;
+        const barW = (W - PAD * 2) / last14.length - 2;
+        const maxH = 10; // max sleep hours on chart
+        const toBarH = (h: number) => Math.max(2, ((h / maxH) * (H - PAD * 2 - 12)));
+        // optimal band 7-9h
+        const optY1 = H - PAD - toBarH(9);
+        const optH  = toBarH(9) - toBarH(7);
+        return (
+          <div className="glass rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🌙 Sleep Quality (14 nights)</p>
+              <span className="text-xs text-indigo-300 font-bold">{last14[last14.length - 1].sleep_hours}h last night</span>
+            </div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20">
+              {/* 7-9h optimal band */}
+              <rect x={PAD} y={optY1} width={W - PAD * 2} height={optH} fill="#6366f115" />
+              {last14.map((v, i) => {
+                const h = v.sleep_hours as number;
+                const bh = toBarH(h);
+                const col = h >= 7 && h <= 9 ? '#6366f1' : h >= 6 ? '#f59e0b' : '#ef4444';
+                return (
+                  <rect key={i}
+                    x={PAD + i * (barW + 2)} y={H - PAD - bh}
+                    width={barW} height={bh} rx="2" fill={col} fillOpacity="0.85"
+                  />
+                );
+              })}
+            </svg>
+            <div className="flex gap-4 mt-2 text-[10px]">
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-indigo-500 inline-block rounded opacity-85" /> 7-9h optimal</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-amber-500 inline-block rounded opacity-85" /> 6-7h fair</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-2 bg-red-500 inline-block rounded opacity-85" /> &lt;6h poor</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ─── Body Weight Tracker ─── */}
       <div className="glass rounded-2xl p-5 space-y-4">
         <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">⚖️ Body Weight Tracker</p>

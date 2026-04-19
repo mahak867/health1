@@ -98,6 +98,21 @@ class _ActivityMapScreenState extends State<ActivityMapScreen>
     return "$m:${s.toString().padLeft(2,'0')}/km";
   }
 
+  String _speed(double distM, int durSec) {
+    if (distM < 10 || durSec < 1) return '0.0 km/h';
+    final kmh = (distM / 1000) / (durSec / 3600);
+    return '${kmh.toStringAsFixed(1)} km/h';
+  }
+
+  /// MET-based calorie estimate (running ~8 MET, walking ~3.5 MET, default 70 kg)
+  String _calories(double distM, int durSec) {
+    if (distM < 10 || durSec < 1) return '0 kcal';
+    final kmh = (distM / 1000) / (durSec / 3600);
+    final met = kmh >= 8 ? 8.0 : kmh >= 5 ? 6.0 : 3.5;
+    final kcal = (met * 70 * (durSec / 3600)).round();
+    return '$kcal kcal';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs        = Theme.of(context).colorScheme;
@@ -122,6 +137,8 @@ class _ActivityMapScreenState extends State<ActivityMapScreen>
                         : '${dist.round()} m'),
                 _Stat(label: 'Duration', value: _fmtTime(_elapsed)),
                 _Stat(label: 'Pace', value: _pace(dist, _elapsed)),
+                _Stat(label: 'Speed', value: _speed(dist, _elapsed)),
+                _Stat(label: 'Calories', value: _calories(dist, _elapsed)),
               ],
             ),
           ),

@@ -325,3 +325,51 @@ fitnessRouter.get('/workouts/volume', async (req, res, next) => {
     return next(error);
   }
 });
+
+// ─── Heart Rate Zones ─────────────────────────────────────────────────────────
+// Karvonen method: zones based on % of HRR (Heart Rate Reserve)
+// Z1 50-60%, Z2 60-70%, Z3 70-80%, Z4 80-90%, Z5 90-100%
+fitnessRouter.get('/hr-zones', async (req, res, next) => {
+  try {
+    const schema = z.object({
+      maxHr:     z.coerce.number().int().min(100).max(220).optional(),
+      restingHr: z.coerce.number().int().min(20).max(120).optional()
+    });
+    const { maxHr, restingHr } = schema.parse(req.query);
+
+    // Fall back to age-predicted max HR if not provided (220 - age)
+    let maxHrFinal = maxHr;
+    if (!maxHrFinal) {
+      const profileResult = await query('SELECT age FROM health_profiles WHERE user_id = $1', [req.user.sub]);
+      const age = profileResult.rows[0]?.age ?? null;
+      maxHrFinal = age ? Math.round(220 - age) : 185; // default for unknown age
+    }
+
+    // Get actual resting HR from last 7 days if not provided
+    let restingHrFinal = restingHr;
+    if (!restingHrFinal) {
+      const rhrResult = await query(
+        `SELECT MIN(heart_rate) AS min_hr
+         FROM vitals
+         WHERE user_id = $1 AND heart_rate IS NOT NULL AND recorded_at >= NOW() - INTERVAL '7 days'`,
+        [req.user.sub]
+      );
+      restingHrFinal = rhrResult.rows[0]?.min_hr ?? 60;
+    }
+
+    const hrr = maxHrFinal - restingHrFinal; // Heart Rate Reserve
+
+    // Zones using Karvonen HRR method (% HRR + resting HR)
+    const zones = [
+      { zone: 1, name: 'Recovery',      color: '#94a3b8', low: Math.round(restingHrFinal + hrr * 0.50), high: Math.round(restingHrFinal + hrr * 0.60), description: 'Active recovery, very light' },
+      { zone: 2, name: 'Aerobic Base',  color: '#22c55e', low: Math.round(restingHrFinal + hrr * 0.60), high: Math.round(restingHrFinal + hrr * 0.70), description: 'Fat burning, endurance building' },
+      { zone: 3, name: 'Tempo',         color: '#f59e0b', low: Math.round(restingHrFinal + hrr * 0.70), high: Math.round(restingHrFinal + hrr * 0.80), description: 'Aerobic capacity, marathon pace' },
+      { zone: 4, name: 'Threshold',     color: '#f97316', low: Math.round(restingHrFinal + hrr * 0.80), high: Math.round(restingHrFinal + hrr * 0.90), description: 'Lactate threshold, high intensity' },
+      { zone: 5, name: 'VO2Max',        color: '#ef4444', low: Math.round(restingHrFinal + hrr * 0.90), high: maxHrFinal,                               description: 'Maximum effort, sprint' },
+    ];
+
+    return res.json({ zones, maxHr: maxHrFinal, restingHr: restingHrFinal, hrr });
+  } catch (error) {
+    return next(error);
+  }
+});

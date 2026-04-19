@@ -504,6 +504,65 @@ export default function WorkoutsPage() {
       {activeTab === 'analytics' && (
         <div className="space-y-6">
           <p className="text-xs text-slate-500">Volume per muscle group across last 8 weeks (total sets logged)</p>
+
+          {/* ─── Training Load ACWR Chart ─── */}
+          {volumeData.length >= 2 && (() => {
+            // Compute weekly total sets per week
+            const weekMap: Record<string, number> = {};
+            volumeData.forEach((r) => {
+              const w = r.week_start;
+              weekMap[w] = (weekMap[w] ?? 0) + (r.total_sets ?? 0);
+            });
+            const weeks = Object.keys(weekMap).sort().slice(-8);
+            if (weeks.length < 2) return null;
+            const vals  = weeks.map((w) => weekMap[w]);
+            // Acute = last 1 week, Chronic = trailing 4-week avg
+            const acute   = vals[vals.length - 1] ?? 0;
+            const chronic = vals.slice(-4).reduce((s, v) => s + v, 0) / Math.min(4, vals.length);
+            const acwr    = chronic > 0 ? +(acute / chronic).toFixed(2) : 0;
+            const acwrColor = acwr >= 0.8 && acwr <= 1.3 ? '#22c55e' : acwr > 1.3 && acwr <= 1.5 ? '#f59e0b' : '#ef4444';
+            const acwrLabel = acwr >= 0.8 && acwr <= 1.3 ? '✅ Optimal' : acwr > 1.5 ? '🔴 Overreaching' : acwr > 1.3 ? '⚠️ Caution' : '🔵 Detraining';
+            // SVG bar chart
+            const W = 360; const H = 80; const P = 8;
+            const maxV = Math.max(...vals, 1);
+            const barW = (W - P * 2) / weeks.length - 3;
+            return (
+              <div className="glass rounded-2xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">📈 Training Load (ACWR)</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black" style={{ color: acwrColor }}>{acwr}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full glass" style={{ color: acwrColor }}>{acwrLabel}</span>
+                  </div>
+                </div>
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20">
+                  {/* Safe zone band 0.8-1.3 of chronic */}
+                  {chronic > 0 && (() => {
+                    const safeY1 = H - P - (Math.min(chronic * 1.3, maxV) / maxV) * (H - P * 2);
+                    const safeY2 = H - P - (Math.max(chronic * 0.8, 0) / maxV) * (H - P * 2);
+                    return <rect x={P} y={safeY1} width={W - P * 2} height={safeY2 - safeY1} fill="#22c55e10" />;
+                  })()}
+                  {weeks.map((_, i) => {
+                    const v = vals[i];
+                    const bh = Math.max(2, (v / maxV) * (H - P * 2));
+                    const col = i === weeks.length - 1 ? acwrColor : '#6366f1';
+                    return (
+                      <rect key={i}
+                        x={P + i * (barW + 3)} y={H - P - bh}
+                        width={barW} height={bh} rx="2" fill={col} fillOpacity={i === weeks.length - 1 ? 1 : 0.5}
+                      />
+                    );
+                  })}
+                </svg>
+                <div className="flex justify-between text-[10px] text-slate-500">
+                  <span>Acute: <span className="text-white font-bold">{acute} sets</span></span>
+                  <span>Chronic avg: <span className="text-white font-bold">{chronic.toFixed(0)} sets</span></span>
+                  <span className="text-slate-600">green band = safe ACWR 0.8-1.3</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {volumeData.length === 0 ? (
             <div className="text-center py-16 text-slate-500">
               <p className="text-4xl mb-3">📊</p>

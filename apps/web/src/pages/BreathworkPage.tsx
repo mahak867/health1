@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Card from '../components/Card';
+import { api } from '../lib/api';
 
 // ─── Technique definitions ────────────────────────────────────────────────────
 interface Phase { label: string; seconds: number; expand: boolean }
@@ -111,10 +112,42 @@ export default function BreathworkPage() {
   const timeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
 
+  // Mood tracker state
+  const [moodScore,   setMoodScore]   = useState<number | null>(null);
+  const [moodNotes,   setMoodNotes]   = useState('');
+  const [moodLogs,    setMoodLogs]    = useState<{ score: number; notes: string | null; logged_at: string }[]>([]);
+  const [moodAvg,     setMoodAvg]     = useState<number | null>(null);
+  const [moodSaving,  setMoodSaving]  = useState(false);
+  const [moodSaved,   setMoodSaved]   = useState(false);
+
+  const MOOD_EMOJIS = ['😞', '😕', '😐', '🙂', '😄'];
+  const MOOD_LABELS = ['Bad', 'Low', 'Okay', 'Good', 'Great'];
+  const MOOD_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#22c55e', '#10b981'];
+
+  function loadMood() {
+    api.get<{ logs: any[]; average: number | null }>('/health/mood?days=14')
+      .then((r) => { setMoodLogs(r.logs); setMoodAvg(r.average); })
+      .catch(() => {});
+  }
+
   useEffect(() => {
     isMountedRef.current = true;
+    loadMood();
     return () => { isMountedRef.current = false; clearAllTimers(); };
   }, []);
+
+  async function logMood(e: React.FormEvent) {
+    e.preventDefault();
+    if (!moodScore) return;
+    setMoodSaving(true);
+    try {
+      await api.post('/health/mood', { score: moodScore, notes: moodNotes || undefined });
+      setMoodScore(null); setMoodNotes(''); setMoodSaved(true);
+      loadMood();
+      setTimeout(() => setMoodSaved(false), 2000);
+    } catch (_) {}
+    setMoodSaving(false);
+  }
 
   function clearAllTimers() {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -303,6 +336,84 @@ export default function BreathworkPage() {
           </div>
         </Card>
       )}
+
+      {/* ─── Mood Tracker (Daylio-style) ─── */}
+      <div className="glass rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">🧠 Mood Check-In</p>
+          {moodAvg && (
+            <span className="text-xs px-2.5 py-1 rounded-full glass font-bold" style={{ color: MOOD_COLORS[Math.round(moodAvg) - 1] }}>
+              14-day avg: {MOOD_EMOJIS[Math.round(moodAvg) - 1]} {moodAvg.toFixed(1)}/5
+            </span>
+          )}
+        </div>
+        <form onSubmit={logMood} className="space-y-3">
+          {/* 5-emoji scale */}
+          <div className="flex gap-2 justify-center">
+            {MOOD_EMOJIS.map((emoji, i) => (
+              <button key={i} type="button"
+                onClick={() => setMoodScore(i + 1)}
+                className={`text-3xl transition-all duration-150 rounded-2xl p-2 ${
+                  moodScore === i + 1
+                    ? 'scale-125 ring-2 bg-white/10'
+                    : 'opacity-50 hover:opacity-80 hover:scale-110'
+                }`}
+                style={{ ringColor: MOOD_COLORS[i] }}
+                title={MOOD_LABELS[i]}>
+                {emoji}
+              </button>
+            ))}
+          </div>
+          {moodScore && (
+            <p className="text-center text-sm font-bold" style={{ color: MOOD_COLORS[moodScore - 1] }}>
+              {MOOD_LABELS[moodScore - 1]} {MOOD_EMOJIS[moodScore - 1]}
+            </p>
+          )}
+          <textarea value={moodNotes} onChange={(e) => setMoodNotes(e.target.value)} rows={2}
+            placeholder="Optional: How are you feeling? What happened today?"
+            className="w-full bg-white/5 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 border border-white/10 focus:outline-none focus:border-violet-500/50 resize-none" />
+          <button type="submit" disabled={!moodScore || moodSaving}
+            className="w-full py-2.5 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-sm font-bold disabled:opacity-40 transition-colors">
+            {moodSaved ? '✅ Mood Logged!' : moodSaving ? 'Saving…' : '+ Log Mood'}
+          </button>
+        </form>
+
+        {/* Recent mood log */}
+        {moodLogs.length > 0 && (
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Recent</p>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {moodLogs.slice(0, 7).map((log) => (
+                <div key={log.logged_at} className="flex items-center gap-3 text-sm py-1 border-b border-white/5 last:border-0">
+                  <span className="text-xl shrink-0">{MOOD_EMOJIS[log.score - 1]}</span>
+                  <span className="font-bold shrink-0" style={{ color: MOOD_COLORS[log.score - 1] }}>{MOOD_LABELS[log.score - 1]}</span>
+                  {log.notes && <span className="text-xs text-slate-500 truncate flex-1">{log.notes}</span>}
+                  <span className="text-[10px] text-slate-600 shrink-0">
+                    {new Date(log.logged_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {/* 14-day mood sparkline */}
+            {moodLogs.length >= 3 && (() => {
+              const vals = [...moodLogs].reverse().map((l) => l.score);
+              const W = 300; const H = 40; const P = 4;
+              const toX = (i: number) => P + (i / (vals.length - 1)) * (W - P * 2);
+              const toY = (v: number) => H - P - ((v - 1) / 4) * (H - P * 2);
+              const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+              return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-10 mt-2">
+                  <polyline points={points} fill="none" stroke="#8b5cf6" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round" />
+                  {vals.map((v, i) => (
+                    <circle key={i} cx={toX(i)} cy={toY(v)} r="3" fill={MOOD_COLORS[v - 1]} />
+                  ))}
+                </svg>
+              );
+            })()}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

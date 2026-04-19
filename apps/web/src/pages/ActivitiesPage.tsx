@@ -286,6 +286,41 @@ export default function ActivitiesPage() {
                     <RouteMiniMap points={a.route_points} color={color} />
                   </div>
                 )}
+                {/* HR Zones bar from per-activity zone seconds */}
+                {(() => {
+                  const z1 = (a as any).hr_zone1_s ?? 0;
+                  const z2 = (a as any).hr_zone2_s ?? 0;
+                  const z3 = (a as any).hr_zone3_s ?? 0;
+                  const z4 = (a as any).hr_zone4_s ?? 0;
+                  const z5 = (a as any).hr_zone5_s ?? 0;
+                  const total = z1 + z2 + z3 + z4 + z5;
+                  if (total === 0) return null;
+                  const zones = [
+                    { s: z1, color: '#94a3b8', label: 'Z1' },
+                    { s: z2, color: '#22c55e', label: 'Z2' },
+                    { s: z3, color: '#f59e0b', label: 'Z3' },
+                    { s: z4, color: '#f97316', label: 'Z4' },
+                    { s: z5, color: '#ef4444', label: 'Z5' },
+                  ];
+                  return (
+                    <div className="mt-2">
+                      <p className="text-[10px] text-slate-500 mb-1">HR Zones</p>
+                      <div className="flex h-2.5 rounded-full overflow-hidden w-full">
+                        {zones.map((z) => z.s > 0 && (
+                          <div key={z.label} style={{ width: `${(z.s / total) * 100}%`, background: z.color }}
+                            title={`${z.label}: ${Math.round(z.s / 60)}min`} />
+                        ))}
+                      </div>
+                      <div className="flex gap-2 mt-1">
+                        {zones.map((z) => z.s > 0 && (
+                          <span key={z.label} className="text-[9px]" style={{ color: z.color }}>
+                            {z.label} {Math.round(z.s / 60)}m
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <button onClick={() => handleKudos(a.id)}
                 className="shrink-0 flex flex-col items-center gap-0.5 text-slate-500 hover:text-yellow-400 transition-colors">

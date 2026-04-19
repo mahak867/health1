@@ -169,6 +169,18 @@ export default function MealsPage() {
   const totalCarb = today.reduce((s, m) => s + (m.carbs_g   ?? 0), 0);
   const totalFat  = today.reduce((s, m) => s + (m.fat_g     ?? 0), 0);
 
+  // Net calories: consumed - burned today (pulled from weekly summary on Dashboard)
+  const [burnedToday, setBurnedToday] = React.useState(0);
+  React.useEffect(() => {
+    api.get<any>('/gamification/weekly-summary').then((r) => {
+      // daily burned = weekly calories burned / days with workouts (approx today's share)
+      const weeklyBurned = r.workouts?.caloriesBurned ?? 0;
+      const workoutsThisWeek = r.workouts?.count ?? 1;
+      const todayEstimate = workoutsThisWeek > 0 ? Math.round(weeklyBurned / workoutsThisWeek) : 0;
+      setBurnedToday(todayEstimate);
+    }).catch(() => {});
+  }, []);
+
   // Reasonable default targets
   const calTarget  = modeTargets?.targetCalories ?? 2000;
   const proTarget  = modeTargets?.proteinGrams ?? 150;
@@ -239,6 +251,86 @@ export default function MealsPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Macro Donut + Net Calories ─── */}
+      {(totalPro > 0 || totalCarb > 0 || totalFat > 0) && (() => {
+        const proCal  = totalPro  * 4;
+        const carbCal = totalCarb * 4;
+        const fatCal  = totalFat  * 9;
+        const macroTotal = proCal + carbCal + fatCal || 1;
+        // SVG donut
+        const R = 46; const cx = 60; const cy = 60; const stroke = 18;
+        const circ = 2 * Math.PI * R;
+        let offset = 0;
+        const slices = [
+          { val: proCal,  color: '#2563eb', label: 'P' },
+          { val: carbCal, color: '#f59e0b', label: 'C' },
+          { val: fatCal,  color: '#e11d48', label: 'F' },
+        ];
+        const paths = slices.map((s) => {
+          const frac = s.val / macroTotal;
+          const dash = frac * circ;
+          const el = (
+            <circle key={s.label}
+              cx={cx} cy={cy} r={R}
+              fill="none" stroke={s.color} strokeWidth={stroke}
+              strokeDasharray={`${dash} ${circ}`}
+              strokeDashoffset={-offset * circ}
+              transform={`rotate(-90 ${cx} ${cy})`}
+              strokeLinecap="butt"
+            />
+          );
+          offset += frac;
+          return el;
+        });
+        const netCal = totalCal - burnedToday;
+        const netColor = netCal <= calTarget ? '#22c55e' : '#ef4444';
+        return (
+          <div className="glass rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-8">
+            {/* Donut */}
+            <div className="shrink-0 flex flex-col items-center gap-2">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Macro Split</p>
+              <svg width={120} height={120} viewBox="0 0 120 120">
+                <circle cx={cx} cy={cy} r={R} fill="none" stroke="#ffffff08" strokeWidth={stroke} />
+                {paths}
+                <text x={cx} y={cy - 5}  textAnchor="middle" fill="white" fontSize="13" fontWeight="bold">{totalCal}</text>
+                <text x={cx} y={cy + 10} textAnchor="middle" fill="#6b7280" fontSize="8">kcal eaten</text>
+              </svg>
+              <div className="flex gap-3 text-[10px]">
+                {[['P', '#2563eb', totalPro], ['C', '#f59e0b', totalCarb], ['F', '#e11d48', totalFat]].map(([l, c, v]) => (
+                  <span key={String(l)} style={{ color: String(c) }} className="font-bold">
+                    {l} {Number(v).toFixed(0)}g ({Math.round((Number(l === 'F' ? v as number * 9 : v as number * 4) / macroTotal) * 100)}%)
+                  </span>
+                ))}
+              </div>
+            </div>
+            {/* Net calories card */}
+            <div className="flex-1 space-y-4 w-full">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { icon: '🍽️', label: 'Consumed',  val: totalCal,   color: '#f97316' },
+                  { icon: '🔥', label: 'Burned',    val: burnedToday, color: '#ef4444' },
+                  { icon: '⚡', label: 'Net',       val: netCal,     color: netColor  },
+                ].map(({ icon, label, val, color }) => (
+                  <div key={label} className="glass rounded-xl p-3 text-center">
+                    <p className="text-lg mb-0.5">{icon}</p>
+                    <p className="text-lg font-black" style={{ color }}>{val.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-500">{label} kcal</p>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-slate-500 space-y-1">
+                <p>🎯 Goal: <span className="text-white font-bold">{calTarget} kcal</span>
+                   {netCal <= calTarget
+                     ? <span className="text-emerald-400 ml-2">· {calTarget - netCal} left</span>
+                     : <span className="text-rose-400 ml-2">· {netCal - calTarget} over</span>}
+                </p>
+                <p className="text-[10px]">Net = consumed − exercise calories. Burned is estimated from today's workouts.</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Log form */}
