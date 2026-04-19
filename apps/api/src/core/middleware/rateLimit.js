@@ -1,23 +1,17 @@
-const buckets = new Map();
+import { rateLimit } from 'express-rate-limit';
 
-export function simpleRateLimit({ windowMs = 60_000, max = 120 } = {}) {
-  return (req, res, next) => {
-    const key = req.ip ?? 'unknown';
-    const now = Date.now();
-    const bucket = buckets.get(key) ?? { count: 0, resetAt: now + windowMs };
+export const defaultRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many requests' }
+});
 
-    if (now > bucket.resetAt) {
-      bucket.count = 0;
-      bucket.resetAt = now + windowMs;
-    }
-
-    bucket.count += 1;
-    buckets.set(key, bucket);
-
-    if (bucket.count > max) {
-      return res.status(429).json({ error: 'Too many requests' });
-    }
-
-    return next();
-  };
-}
+export const authRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many authentication requests' }
+});

@@ -4,7 +4,7 @@ import { securityMiddleware } from './core/middleware/security.js';
 import { requireAuth } from './core/middleware/auth.js';
 import { auditLog } from './core/middleware/audit.js';
 import { errorHandler, notFound } from './core/middleware/error.js';
-import { simpleRateLimit } from './core/middleware/rateLimit.js';
+import { authRateLimit, defaultRateLimit } from './core/middleware/rateLimit.js';
 import { authRouter } from './modules/auth/routes.js';
 import { healthModuleRouter } from './modules/health/routes.js';
 import { fitnessRouter } from './modules/fitness/routes.js';
@@ -25,11 +25,11 @@ export function buildApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(morgan('combined'));
   app.use(securityMiddleware);
-  app.use(simpleRateLimit());
+  app.use(defaultRateLimit);
 
   app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
 
-  app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/auth', authRateLimit, authRouter);
   app.use('/api/v1/health', requireAuth, auditLog, healthModuleRouter);
   app.use('/api/v1/fitness', requireAuth, auditLog, fitnessRouter);
   app.use('/api/v1/nutrition', requireAuth, auditLog, nutritionRouter);

@@ -18,7 +18,7 @@ Base path: `/api/v1`
 - `/exports`
 - `/ranking`
 - `/modes`
-- `/ai`
+- `/ai` (`POST /ai/recommendations`)
 - `/social`
 
 WebSocket endpoint: `/ws`
