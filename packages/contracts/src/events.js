@@ -8,7 +8,8 @@ export const WS_CHANNELS = {
   FITNESS: 'fitness',
   NUTRITION: 'nutrition',
   NOTIFICATIONS: 'notifications',
-  SOCIAL: 'social'
+  SOCIAL: 'social',
+  TRAINER_CHAT: 'trainer_chat'
 };
 
 export const WS_EVENT_TYPES = {

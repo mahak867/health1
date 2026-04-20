@@ -25,7 +25,6 @@ WORKDIR /app
 
 # Copy only the production node_modules + sources from the builder
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/apps/api ./apps/api
 COPY --from=builder /app/packages/contracts ./packages/contracts
 COPY --from=builder /app/package.json ./package.json

@@ -19,5 +19,8 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   googleOauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? '',
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? '',
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? '',
+  twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? '',
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '').split(',').filter(Boolean)
 };

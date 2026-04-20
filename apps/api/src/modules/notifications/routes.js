@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../../config/db.js';
+import { sendSms, smsConfigured } from '../../core/utils/sms.js';
 
 const prefsSchema = z.object({
   emailEnabled: z.boolean().optional(),
@@ -86,8 +87,37 @@ notificationsRouter.post('/schedule', async (req, res, next) => {
       ]
     );
 
+    // Dispatch SMS immediately (non-blocking)
+    if (input.channel === 'sms') {
+      dispatchSmsIfNeeded(req.user.sub, input.payload).catch(() => {});
+    }
+
     return res.status(201).json({ notification: created.rows[0] });
   } catch (error) {
     return next(error);
   }
 });
+
+// ─── SMS dispatch (fire-and-forget, non-blocking) ─────────────────────────────
+// When a notification with channel='sms' is scheduled and the user has sms_enabled,
+// the message is dispatched immediately via Twilio (ignoring future scheduledAt).
+async function dispatchSmsIfNeeded(userId, notificationPayload) {
+  if (!smsConfigured()) return;
+
+  const prefResult = await query(
+    'SELECT sms_enabled FROM notification_preferences WHERE user_id = $1',
+    [userId]
+  );
+  if (!prefResult.rows[0]?.sms_enabled) return;
+
+  const phoneResult = await query('SELECT phone_number FROM users WHERE id = $1', [userId]);
+  const phoneNumber = phoneResult.rows[0]?.phone_number;
+  if (!phoneNumber) return;
+
+  const body = notificationPayload.message
+    ?? notificationPayload.body
+    ?? notificationPayload.title
+    ?? JSON.stringify(notificationPayload);
+
+  await sendSms(phoneNumber, String(body).slice(0, 1600));
+}
