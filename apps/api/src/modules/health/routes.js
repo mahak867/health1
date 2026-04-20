@@ -477,7 +477,7 @@ const labResultSchema = z.object({
   notes:                  z.string().optional(),
 });
 
-healthRouter.get('/lab-results', async (req, res, next) => {
+healthModuleRouter.get('/lab-results', async (req, res, next) => {
   try {
     const result = await query(
       `SELECT * FROM lab_results WHERE user_id = $1 ORDER BY test_date DESC LIMIT 50`,
@@ -489,7 +489,7 @@ healthRouter.get('/lab-results', async (req, res, next) => {
   }
 });
 
-healthRouter.post('/lab-results', async (req, res, next) => {
+healthModuleRouter.post('/lab-results', async (req, res, next) => {
   try {
     const data = labResultSchema.parse(req.body);
     const result = await query(
@@ -528,7 +528,7 @@ healthRouter.post('/lab-results', async (req, res, next) => {
   }
 });
 
-healthRouter.delete('/lab-results/:id', async (req, res, next) => {
+healthModuleRouter.delete('/lab-results/:id', async (req, res, next) => {
   try {
     await query('DELETE FROM lab_results WHERE id = $1 AND user_id = $2', [req.params.id, req.user.sub]);
     return res.status(204).send();
@@ -554,7 +554,7 @@ const bodyMeasSchema = z.object({
   notes:          z.string().optional(),
 });
 
-healthRouter.get('/body-measurements', async (req, res, next) => {
+healthModuleRouter.get('/body-measurements', async (req, res, next) => {
   try {
     const result = await query(
       `SELECT * FROM body_measurements WHERE user_id = $1 ORDER BY measured_at DESC LIMIT 30`,
@@ -566,7 +566,7 @@ healthRouter.get('/body-measurements', async (req, res, next) => {
   }
 });
 
-healthRouter.post('/body-measurements', async (req, res, next) => {
+healthModuleRouter.post('/body-measurements', async (req, res, next) => {
   try {
     const data = bodyMeasSchema.parse(req.body);
     const result = await query(
