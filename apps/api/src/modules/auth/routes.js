@@ -1,9 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { OAuth2Client } from 'google-auth-library';
 import { query } from '../../config/db.js';
+import { env } from '../../config/env.js';
 import { hashText, compareHash } from '../../core/utils/crypto.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../core/utils/jwt.js';
 import { hashToken } from '../../core/utils/token.js';
+import { requireAuth } from '../../core/middleware/auth.js';
+
+const googleClient = new OAuth2Client();
 
 const roleEnum = z.enum(['user', 'doctor', 'trainer', 'nutritionist', 'admin']);
 
@@ -130,8 +135,53 @@ authRouter.post('/logout', async (req, res, next) => {
   }
 });
 
-authRouter.post('/google', async (_req, res) => {
-  return res.status(501).json({
-    error: 'Google OAuth token verification endpoint scaffolded; integrate provider verification before production use.'
-  });
+authRouter.post('/google', async (req, res, next) => {
+  try {
+    const { idToken } = z.object({ idToken: z.string().min(1) }).parse(req.body);
+
+    if (!env.googleOauthClientId) {
+      return res.status(503).json({ error: 'Google OAuth is not configured on this server.' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: env.googleOauthClientId
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.email) {
+      return res.status(400).json({ error: 'Google token did not contain an email address.' });
+    }
+
+    const { email, name, sub: googleId } = payload;
+
+    // Find or create the user (OAuth users have no password_hash)
+    const upserted = await query(
+      `INSERT INTO users (email, full_name, password_hash, role)
+       VALUES ($1, $2, NULL, 'user')
+       ON CONFLICT (email)
+       DO UPDATE SET full_name = COALESCE(users.full_name, EXCLUDED.full_name)
+       RETURNING id, email, full_name, role`,
+      [email, name ?? email.split('@')[0]]
+    );
+
+    const user = upserted.rows[0];
+    const accessToken = signAccessToken({ sub: user.id, role: user.role, email: user.email });
+    const refreshToken = signRefreshToken({ sub: user.id, role: user.role, email: user.email });
+    await persistRefreshToken(user.id, refreshToken);
+
+    return res.json({ user, accessToken, refreshToken, googleId });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+authRouter.put('/phone', requireAuth, async (req, res, next) => {
+  try {
+    const { phoneNumber } = z.object({ phoneNumber: z.string().regex(/^\+[1-9]\d{6,14}$/, 'Must be E.164 format, e.g. +12125551234') }).parse(req.body);
+
+    await query('UPDATE users SET phone_number = $1 WHERE id = $2', [phoneNumber, req.user.sub]);
+    return res.json({ phoneNumber });
+  } catch (error) {
+    return next(error);
+  }
 });

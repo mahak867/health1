@@ -241,7 +241,7 @@ fitnessRouter.delete('/templates/:templateId', async (req, res, next) => {
 fitnessRouter.get('/trainer/messages', async (req, res, next) => {
   try {
     // Returns the list of trainers the current user follows, so the client can
-    // open a direct channel to each. Full in-app messaging is a future module.
+    // open a direct channel to each.
     const result = await query(
       `SELECT u.id, u.full_name, u.role, sf.created_at AS followed_at
        FROM social_follows sf
@@ -252,8 +252,44 @@ fitnessRouter.get('/trainer/messages', async (req, res, next) => {
 
     return res.json({
       trainers: result.rows,
-      note: 'Real-time trainer messaging is delivered over WebSocket channel "trainer_chat".'
+      note: 'Subscribe to WebSocket channel "trainer_chat:{sorted-pair-key}" and send type:"chat_message" messages.'
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+fitnessRouter.get('/trainer/messages/:trainerId', async (req, res, next) => {
+  try {
+    const { trainerId } = req.params;
+    const limit = Math.min(Number(req.query.limit ?? 50), 200);
+    const before = req.query.before ?? null;
+
+    const result = await query(
+      `SELECT id, sender_id, recipient_id, body, sent_at, read_at
+       FROM trainer_chat_messages
+       WHERE (
+         (sender_id = $1 AND recipient_id = $2)
+         OR
+         (sender_id = $2 AND recipient_id = $1)
+       )
+       ${before ? 'AND sent_at < $4' : ''}
+       ORDER BY sent_at DESC
+       LIMIT $3`,
+      before
+        ? [req.user.sub, trainerId, limit, before]
+        : [req.user.sub, trainerId, limit]
+    );
+
+    // Mark incoming messages as read
+    await query(
+      `UPDATE trainer_chat_messages
+       SET read_at = NOW()
+       WHERE sender_id = $2 AND recipient_id = $1 AND read_at IS NULL`,
+      [req.user.sub, trainerId]
+    );
+
+    return res.json({ messages: result.rows.reverse() });
   } catch (error) {
     return next(error);
   }
