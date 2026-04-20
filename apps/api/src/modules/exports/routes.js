@@ -45,15 +45,21 @@ async function fetchReportData(userId, reportType) {
   const data = {};
 
   if (reportType === 'health' || reportType === 'combined') {
-    const [vitals, labs, body, meds] = await Promise.all([
+    const [vitals, labs, bodyWeight, bodyMeasure, meds] = await Promise.all([
       query('SELECT recorded_at, heart_rate, systolic_bp, diastolic_bp, spo2, temperature_c, sleep_hours, stress_level, calories_burned FROM vitals WHERE user_id = $1 ORDER BY recorded_at DESC LIMIT 500', [userId]),
-      query('SELECT recorded_at, cholesterol_total, cholesterol_ldl, cholesterol_hdl, triglycerides, glucose_fasting, hba1c FROM lab_results WHERE user_id = $1 ORDER BY recorded_at DESC LIMIT 200', [userId]),
-      query('SELECT recorded_at, weight_kg, body_fat_pct, muscle_mass_kg, bmi FROM body_measurements WHERE user_id = $1 ORDER BY recorded_at DESC LIMIT 200', [userId]),
+      query(`SELECT test_date, test_name,
+               total_cholesterol_mgdl, ldl_mgdl, hdl_mgdl, triglycerides_mgdl,
+               fasting_glucose_mgdl, hba1c_pct,
+               hemoglobin_gdl, vitamin_d_ngml, vo2max_mlkgmin
+             FROM lab_results WHERE user_id = $1 ORDER BY test_date DESC LIMIT 200`, [userId]),
+      query('SELECT logged_at, weight_kg, body_fat_pct, notes FROM body_weight_logs WHERE user_id = $1 ORDER BY logged_at DESC LIMIT 200', [userId]),
+      query('SELECT measured_at, waist_cm, hips_cm, chest_cm, neck_cm, left_arm_cm, right_arm_cm, left_thigh_cm, right_thigh_cm, shoulders_cm FROM body_measurements WHERE user_id = $1 ORDER BY measured_at DESC LIMIT 200', [userId]),
       query('SELECT medication_name, dosage, frequency, started_at, ended_at FROM medications WHERE user_id = $1 ORDER BY created_at DESC', [userId])
     ]);
     data.vitals = vitals.rows;
     data.labResults = labs.rows;
-    data.bodyMeasurements = body.rows;
+    data.bodyWeightLogs = bodyWeight.rows;
+    data.bodyMeasurements = bodyMeasure.rows;
     data.medications = meds.rows;
   }
 
@@ -100,13 +106,14 @@ function datasetToCsv(label, rows) {
 
 function buildCsv(reportType, data) {
   let csv = `HealthSphere Export – ${reportType} – ${new Date().toISOString()}\n`;
-  if (data.vitals)           csv += datasetToCsv('Vitals', data.vitals);
-  if (data.labResults)       csv += datasetToCsv('Lab Results', data.labResults);
-  if (data.bodyMeasurements) csv += datasetToCsv('Body Measurements', data.bodyMeasurements);
-  if (data.medications)      csv += datasetToCsv('Medications', data.medications);
-  if (data.workouts)         csv += datasetToCsv('Workouts', data.workouts);
-  if (data.personalRecords)  csv += datasetToCsv('Personal Records', data.personalRecords);
-  if (data.nutritionLogs)    csv += datasetToCsv('Nutrition Logs', data.nutritionLogs);
+  if (data.vitals)            csv += datasetToCsv('Vitals', data.vitals);
+  if (data.labResults)        csv += datasetToCsv('Lab Results', data.labResults);
+  if (data.bodyWeightLogs)    csv += datasetToCsv('Body Weight', data.bodyWeightLogs);
+  if (data.bodyMeasurements)  csv += datasetToCsv('Body Measurements', data.bodyMeasurements);
+  if (data.medications)       csv += datasetToCsv('Medications', data.medications);
+  if (data.workouts)          csv += datasetToCsv('Workouts', data.workouts);
+  if (data.personalRecords)   csv += datasetToCsv('Personal Records', data.personalRecords);
+  if (data.nutritionLogs)     csv += datasetToCsv('Nutrition Logs', data.nutritionLogs);
   return csv;
 }
 
@@ -162,10 +169,11 @@ function buildPdf(reportType, data, res) {
   doc.moveDown(0.3);
   doc.fontSize(10).text(`Generated: ${new Date().toUTCString()}`, { align: 'center' });
 
-  if (data.vitals?.length)           addSection(doc, 'Vitals', data.vitals, ['recorded_at', 'heart_rate', 'systolic_bp', 'diastolic_bp', 'spo2', 'temperature_c', 'sleep_hours']);
-  if (data.labResults?.length)       addSection(doc, 'Lab Results', data.labResults, ['recorded_at', 'cholesterol_total', 'cholesterol_ldl', 'cholesterol_hdl', 'glucose_fasting', 'hba1c']);
-  if (data.bodyMeasurements?.length) addSection(doc, 'Body Measurements', data.bodyMeasurements, ['recorded_at', 'weight_kg', 'body_fat_pct', 'muscle_mass_kg', 'bmi']);
-  if (data.medications?.length)      addSection(doc, 'Medications', data.medications, ['medication_name', 'dosage', 'frequency', 'started_at', 'ended_at']);
+  if (data.vitals?.length)            addSection(doc, 'Vitals', data.vitals, ['recorded_at', 'heart_rate', 'systolic_bp', 'diastolic_bp', 'spo2', 'temperature_c', 'sleep_hours']);
+  if (data.labResults?.length)        addSection(doc, 'Lab Results', data.labResults, ['test_date', 'test_name', 'total_cholesterol_mgdl', 'ldl_mgdl', 'hdl_mgdl', 'fasting_glucose_mgdl', 'hba1c_pct']);
+  if (data.bodyWeightLogs?.length)    addSection(doc, 'Body Weight', data.bodyWeightLogs, ['logged_at', 'weight_kg', 'body_fat_pct', 'notes']);
+  if (data.bodyMeasurements?.length)  addSection(doc, 'Body Measurements', data.bodyMeasurements, ['measured_at', 'waist_cm', 'hips_cm', 'chest_cm', 'neck_cm', 'left_arm_cm', 'shoulders_cm']);
+  if (data.medications?.length)       addSection(doc, 'Medications', data.medications, ['medication_name', 'dosage', 'frequency', 'started_at', 'ended_at']);
   if (data.workouts?.length)         addSection(doc, 'Workouts', data.workouts, ['title', 'duration_seconds', 'calories_burned', 'started_at', 'completed_at']);
   if (data.personalRecords?.length)  addSection(doc, 'Personal Records', data.personalRecords, ['exercise_name', 'muscle_group', 'weight_kg', 'reps', 'estimated_1rm', 'achieved_at']);
   if (data.nutritionLogs?.length)    addSection(doc, 'Nutrition Logs', data.nutritionLogs, ['consumed_at', 'meal_type', 'meal_name', 'calories', 'protein_g', 'carbs_g', 'fat_g']);

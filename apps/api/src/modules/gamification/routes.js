@@ -251,7 +251,7 @@ gamificationRouter.get('/weekly-summary', async (req, res, next) => {
       ),
       query(
         `SELECT COUNT(*) AS count,
-                COALESCE(SUM(distance_km), 0)::numeric AS total_km
+                COALESCE(SUM(distance_m / 1000.0), 0)::numeric AS total_km
          FROM activities
          WHERE user_id = $1 AND started_at >= $2`,
         [req.user.sub, weekStart.toISOString()]

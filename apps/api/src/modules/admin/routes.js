@@ -92,8 +92,11 @@ adminRouter.get('/stats', async (_req, res, next) => {
       workouts,
       meals,
       appointments,
+      appointmentsToday,
+      reportsQueued,
       rankings,
-      recommendations
+      recommendations,
+      auditLast24h
     ] = await Promise.all([
       query(`SELECT
                COUNT(*)                                         AS total,
@@ -115,9 +118,12 @@ adminRouter.get('/stats', async (_req, res, next) => {
                COUNT(*) FILTER (WHERE status = 'scheduled')                    AS scheduled,
                COUNT(*) FILTER (WHERE starts_at >= NOW())                      AS upcoming
              FROM appointments`),
+      query(`SELECT COUNT(*)::int AS today FROM appointments WHERE starts_at::date = CURRENT_DATE`),
+      query(`SELECT COUNT(*)::int AS queued FROM reports WHERE status = 'queued'`),
       query(`SELECT COUNT(*) AS total FROM muscle_rankings`),
       query(`SELECT COUNT(*) AS total FROM recommendation_events
-             WHERE generated_at >= NOW() - INTERVAL '30 days'`)
+             WHERE generated_at >= NOW() - INTERVAL '30 days'`),
+      query(`SELECT COUNT(*)::int AS count FROM audit_logs WHERE created_at >= NOW() - INTERVAL '24 hours'`)
     ]);
 
     return res.json({
@@ -126,9 +132,98 @@ adminRouter.get('/stats', async (_req, res, next) => {
         vitals: vitals.rows[0],
         workouts: { total: workouts.rows[0].total },
         meals: { total: meals.rows[0].total },
-        appointments: appointments.rows[0],
+        appointments: {
+          ...appointments.rows[0],
+          today: appointmentsToday.rows[0].today
+        },
+        reports_queued: reportsQueued.rows[0].queued,
         rankings: { total: rankings.rows[0].total },
-        ai_recommendations_last_30d: recommendations.rows[0].total
+        ai_recommendations_last_30d: recommendations.rows[0].total,
+        audit_events_last_24h: auditLast24h.rows[0].count
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── Platform Analytics ───────────────────────────────────────────────────────
+adminRouter.get('/analytics', async (_req, res, next) => {
+  try {
+    const [
+      vitalsTrends,
+      workoutVolume,
+      nutritionCompliance,
+      appointmentUtilization
+    ] = await Promise.all([
+      // Vitals Trends: weekly platform averages for last 8 weeks
+      query(`
+        SELECT
+          DATE_TRUNC('week', recorded_at)::date AS week_start,
+          ROUND(AVG(heart_rate))::int           AS avg_heart_rate,
+          ROUND(AVG(systolic_bp))::int          AS avg_systolic_bp,
+          ROUND(AVG(diastolic_bp))::int         AS avg_diastolic_bp,
+          ROUND(AVG(spo2)::numeric, 1)          AS avg_spo2,
+          COUNT(*)::int                         AS readings
+        FROM vitals
+        WHERE recorded_at >= NOW() - INTERVAL '8 weeks'
+          AND (heart_rate IS NOT NULL OR systolic_bp IS NOT NULL OR spo2 IS NOT NULL)
+        GROUP BY week_start
+        ORDER BY week_start ASC`),
+
+      // Workout Volume: per-muscle-group total sets in last 4 weeks
+      query(`
+        SELECT
+          LOWER(we.muscle_group)          AS muscle_group,
+          SUM(we.sets)::int               AS total_sets,
+          COUNT(DISTINCT w.id)::int       AS workouts,
+          COUNT(DISTINCT w.user_id)::int  AS active_users
+        FROM workout_exercises we
+        JOIN workouts w ON w.id = we.workout_id
+        WHERE COALESCE(w.completed_at, w.started_at) >= NOW() - INTERVAL '4 weeks'
+        GROUP BY muscle_group
+        ORDER BY total_sets DESC
+        LIMIT 15`),
+
+      // Nutrition Compliance: daily avg calories & macros vs logged entries in last 30 days
+      query(`
+        SELECT
+          DATE(consumed_at)                      AS day,
+          COUNT(DISTINCT user_id)::int           AS users_logged,
+          ROUND(AVG(calories))::int              AS avg_calories,
+          ROUND(AVG(protein_g)::numeric, 1)      AS avg_protein_g,
+          ROUND(AVG(carbs_g)::numeric, 1)        AS avg_carbs_g,
+          ROUND(AVG(fat_g)::numeric, 1)          AS avg_fat_g
+        FROM nutrition_logs
+        WHERE consumed_at >= NOW() - INTERVAL '30 days'
+        GROUP BY day
+        ORDER BY day DESC
+        LIMIT 30`),
+
+      // Appointment Utilization: by provider role for all time
+      query(`
+        SELECT
+          u.role                                                          AS provider_role,
+          COUNT(*)::int                                                   AS total,
+          COUNT(*) FILTER (WHERE a.status = 'completed')::int            AS completed,
+          COUNT(*) FILTER (WHERE a.status = 'cancelled')::int            AS cancelled,
+          COUNT(*) FILTER (WHERE a.status = 'no_show')::int              AS no_show,
+          ROUND(
+            100.0 * COUNT(*) FILTER (WHERE a.status = 'completed')
+            / NULLIF(COUNT(*), 0), 1
+          )::numeric                                                      AS completion_rate_pct
+        FROM appointments a
+        JOIN users u ON u.id = a.provider_user_id
+        GROUP BY u.role
+        ORDER BY total DESC`)
+    ]);
+
+    return res.json({
+      analytics: {
+        vitalsTrends:          vitalsTrends.rows,
+        workoutVolume:         workoutVolume.rows,
+        nutritionCompliance:   nutritionCompliance.rows,
+        appointmentUtilization: appointmentUtilization.rows
       }
     });
   } catch (error) {
